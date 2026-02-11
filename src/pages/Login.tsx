@@ -195,9 +195,9 @@ export default function Login() {
             <motion.div 
               animate={{ rotate: [12, 0, 12] }}
               transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-              className="w-28 h-28 bg-gradient-to-tr from-primary to-purple-600 rounded-[32px] flex items-center justify-center shadow-lg shadow-primary/40 relative z-10"
+              className="w-20 h-20 bg-gradient-to-tr from-primary to-purple-600 rounded-[24px] flex items-center justify-center shadow-lg shadow-primary/40 relative z-10"
             >
-              <Heart className="text-white w-14 h-14 fill-current drop-shadow-md" />
+              <Heart className="text-white w-10 h-10 fill-current drop-shadow-md" />
             </motion.div>
             
             {/* Floating elements */}
@@ -254,6 +254,7 @@ export default function Login() {
                       autoFocus
                       autoCapitalize="none"
                       inputMode="email"
+                      autoComplete="username"
                     />
                   </div>
 
@@ -266,6 +267,7 @@ export default function Login() {
                       className="w-full bg-black/20 border border-white/10 rounded-2xl h-14 pl-12 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:border-primary/50 focus:bg-black/40 focus:ring-1 focus:ring-primary/50 transition-all text-base font-medium"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      autoComplete="current-password"
                     />
                   </div>
                 </div>

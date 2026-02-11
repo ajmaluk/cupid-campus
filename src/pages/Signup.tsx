@@ -18,7 +18,6 @@ export default function Signup() {
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  // const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
   
   const [formData, setFormData] = useState({
@@ -98,19 +97,20 @@ export default function Signup() {
           throw new Error('Username already taken');
         }
 
-        // Send OTP
-        const response = await fetch('http://localhost:3001/api/send-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: formData.email })
+        // Register in Supabase to trigger OTP
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            data: {
+              full_name: formData.name,
+              username: formData.username,
+            }
+          }
         });
 
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || 'Failed to send OTP');
-        }
+        if (signUpError) throw signUpError;
 
-        // setOtpSent(true); // Keep this if we uncomment state, otherwise remove
         setCurrentStep(prev => prev + 1);
       } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
         console.error('Signup Error:', err);
@@ -130,30 +130,14 @@ export default function Signup() {
       }
       setLoading(true);
       try {
-        const verifyRes = await fetch('http://localhost:3001/api/verify-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: formData.email, otp })
-        });
-
-        if (!verifyRes.ok) {
-          const data = await verifyRes.json();
-          throw new Error(data.error || 'Invalid OTP');
-        }
-
-        // Register in Supabase
-        const { data, error: signUpError } = await supabase.auth.signUp({
+        // Verify OTP
+        const { data, error: verifyError } = await supabase.auth.verifyOtp({
           email: formData.email,
-          password: formData.password,
-          options: {
-            data: {
-              full_name: formData.name,
-              username: formData.username,
-            }
-          }
+          token: otp,
+          type: 'signup'
         });
 
-        if (signUpError) throw signUpError;
+        if (verifyError) throw verifyError;
 
         if (data.user) {
           // Create Profile
