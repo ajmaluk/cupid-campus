@@ -39,6 +39,8 @@ export default function Signup() {
 
   const [resendTimer, setResendTimer] = useState(0);
 
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (resendTimer > 0) {
@@ -48,6 +50,36 @@ export default function Signup() {
     }
     return () => clearInterval(timer);
   }, [resendTimer]);
+  
+  // Debounced username check
+  useEffect(() => {
+    const checkUsername = async () => {
+      if (!formData.username || formData.username.length < 3) return;
+      
+      setIsCheckingUsername(true);
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('username', formData.username.trim().toLowerCase())
+          .maybeSingle();
+          
+        if (error) throw error;
+        if (data) {
+          setError('Username already taken');
+        } else {
+          setError('');
+        }
+      } catch (err) {
+        console.error('Error checking username:', err);
+      } finally {
+        setIsCheckingUsername(false);
+      }
+    };
+
+    const timer = setTimeout(checkUsername, 500);
+    return () => clearTimeout(timer);
+  }, [formData.username]);
   
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updateForm = (key: keyof typeof formData, value: any) => {
@@ -100,7 +132,7 @@ export default function Signup() {
         const sanitizedUsername = formData.username.trim().toLowerCase();
         const sanitizedEmail = formData.email.trim().toLowerCase();
 
-        // Check Username
+        // Check Username (Final Check)
         const { data: existingUser, error: checkError } = await supabase
           .from('profiles')
           .select('username')
@@ -466,14 +498,21 @@ export default function Signup() {
               {/* Step 2: Account Credentials */}
               {currentStep === 1 && (
                 <div className="space-y-4">
-                  <Input 
-                    placeholder="Username" 
-                    value={formData.username}
-                    onChange={e => updateForm('username', e.target.value)}
-                    className="bg-black/20 border-white/10 h-14 rounded-2xl text-lg"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                  />
+                  <div className="relative">
+                    <Input 
+                      placeholder="Username" 
+                      value={formData.username}
+                      onChange={e => updateForm('username', e.target.value)}
+                      className={`bg-black/20 border-white/10 h-14 rounded-2xl text-lg ${error === 'Username already taken' ? 'border-red-500' : ''}`}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                    />
+                    {isCheckingUsername && (
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                        <Loader2 className="animate-spin text-primary" size={20} />
+                      </div>
+                    )}
+                  </div>
                   <Input 
                     type="email"
                     placeholder="College Email (@cet.ac.in)" 
