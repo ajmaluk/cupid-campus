@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '../components/ui/Button';
@@ -37,6 +37,18 @@ export default function Signup() {
     bio: ''
   });
 
+  const [resendTimer, setResendTimer] = useState(0);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (resendTimer > 0) {
+      timer = setInterval(() => {
+        setResendTimer(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [resendTimer]);
+  
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updateForm = (key: keyof typeof formData, value: any) => {
     if (key === 'department') {
@@ -97,7 +109,7 @@ export default function Signup() {
           throw new Error('Username already taken');
         }
 
-        // Register in Supabase to trigger OTP
+        // SignUp with Supabase (Sends Email OTP)
         const { error: signUpError } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
@@ -111,15 +123,12 @@ export default function Signup() {
 
         if (signUpError) throw signUpError;
 
+        setResendTimer(60);
         setCurrentStep(prev => prev + 1);
       } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
         console.error('Signup Error:', err);
         const message = err?.message || err?.error_description || JSON.stringify(err);
-        setError(
-          message.includes('fetch') || message.includes('Load failed') || message.includes('Failed to fetch')
-            ? 'Network Error: Is the server running?' 
-            : message
-        );
+        setError(message);
       } finally {
         setLoading(false);
       }
@@ -130,8 +139,8 @@ export default function Signup() {
       }
       setLoading(true);
       try {
-        // Verify OTP
-        const { data, error: verifyError } = await supabase.auth.verifyOtp({
+        // Verify OTP (Signup Type)
+        const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
           email: formData.email,
           token: otp,
           type: 'signup'
@@ -139,10 +148,11 @@ export default function Signup() {
 
         if (verifyError) throw verifyError;
 
-        if (data.user) {
+        const userId = verifyData.user?.id;
+        if (userId) {
           // Create Profile
           const profile: Profile = {
-            id: data.user.id,
+            id: userId,
             name: formData.name,
             username: formData.username,
             dob: formData.dob,
@@ -162,18 +172,15 @@ export default function Signup() {
             created_at: new Date().toISOString()
           };
 
-          await supabase.from('profiles').upsert(profile);
+          const { error: upsertError } = await supabase.from('profiles').upsert(profile);
+          if (upsertError) throw upsertError;
           setCurrentUser(profile);
           setCurrentStep(prev => prev + 1);
         }
       } catch (err: any) {
         console.error('Verification Error:', err);
         const message = err?.message || 'Verification failed';
-        setError(
-          message.includes('fetch') || message.includes('Load failed') || message.includes('Failed to fetch')
-            ? 'Network Error: Is the server running?' 
-            : message
-        );
+        setError(message);
       } finally {
         setLoading(false);
       }
@@ -189,6 +196,27 @@ export default function Signup() {
       setCurrentStep(prev => prev - 1);
     } else {
       navigate('/');
+    }
+  };
+
+  const handleResend = async () => {
+    if (resendTimer > 0) return;
+    
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: formData.email,
+      });
+      
+      if (error) throw error;
+
+      setResendTimer(60);
+    } catch (err: any) {
+      console.error('Resend Error:', err);
+      setError(err.message || 'Failed to resend code');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -493,6 +521,7 @@ export default function Signup() {
                     <input 
                       type="text"
                       placeholder="000000" 
+                      autoFocus
                       className="w-full bg-black/20 border border-white/10 rounded-3xl py-6 text-center text-4xl tracking-[0.5em] text-white focus:border-primary/50 outline-none font-mono placeholder:text-gray-700 transition-all focus:bg-black/30"
                       maxLength={6}
                       inputMode="numeric"
@@ -501,7 +530,12 @@ export default function Signup() {
                       onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
                     />
                     <p className="text-xs text-gray-500">
-                      Did not receive the code? <span className="text-white cursor-pointer hover:underline">Resend</span>
+                      Did not receive the code? <span 
+                        className={`text-white cursor-pointer hover:underline ${resendTimer > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        onClick={handleResend}
+                      >
+                        {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend'}
+                      </span>
                     </p>
                   </div>
                 </div>

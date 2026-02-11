@@ -30,11 +30,33 @@ export default function Discover() {
       setLoading(true);
       setError('');
       
+      // 0. Sync Swipes from DB (Source of Truth)
+      const { data: dbSwipes, error: swipesError } = await supabase
+        .from('swipes')
+        .select('swiped_id')
+        .eq('swiper_id', currentUser.id);
+
+      if (swipesError) {
+        console.error('Error syncing swipes:', swipesError);
+      }
+
+      const dbSwipedIds = dbSwipes?.map(s => s.swiped_id) || [];
+      
+      // Update local store if needed (silent update)
+      // We don't call setSwipes here to avoid infinite loops, but we use dbSwipedIds for filtering
+      
       // 1. Fetch potential matches from Supabase
-      const { data, error } = await supabase
+      let query = supabase
         .from('profiles')
         .select('*')
         .neq('id', currentUser.id);
+
+      // Server-side Gender Filtering
+      if (currentUser.interested_in !== 'Everyone') {
+        query = query.eq('gender', currentUser.interested_in);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching profiles:', error);
@@ -46,7 +68,8 @@ export default function Discover() {
       // Filter blocked/matched/swiped
       const matchedIds = matches.map(m => m.user2 === currentUser.id ? m.user1 : m.user2);
       const blockedIds = blockedUsers;
-      
+      const allSwipedIds = [...new Set([...swipes, ...dbSwipedIds])]; // Merge local and DB
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let availableProfiles = (data || []).map((p: any) => ({
         ...p,
@@ -58,7 +81,10 @@ export default function Discover() {
       availableProfiles = availableProfiles.filter(p => 
         !matchedIds.includes(p.id) && 
         !blockedIds.includes(p.id) &&
-        !swipes.includes(p.id)
+        !allSwipedIds.includes(p.id) &&
+        // Gender Filtering
+        (currentUser.interested_in === 'Everyone' || p.gender === currentUser.interested_in) &&
+        (p.interested_in === 'Everyone' || p.interested_in === currentUser.gender)
       );
 
       // 2. Check for Admin Recommendations

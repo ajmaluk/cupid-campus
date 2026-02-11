@@ -28,6 +28,7 @@ export default function Onboarding({ isEditing = false }: { isEditing?: boolean 
   const [currentStep, setCurrentStep] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const getUser = async () => {
@@ -58,14 +59,18 @@ export default function Onboarding({ isEditing = false }: { isEditing?: boolean 
             bio: profile.bio || ''
           }));
           
-          // Optional: Smart skip could go here, but pre-fill is safer for verification
+          // Smart Skip: If we have the basics, jump to Photos
+          if (!isEditing && profile.name && profile.department && profile.interests && profile.interests.length > 0) {
+             setCurrentStep(3);
+          }
         }
       } else {
         navigate('/');
       }
+      setIsLoading(false);
     };
     getUser();
-  }, [navigate]);
+  }, [navigate, isEditing]);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -170,6 +175,14 @@ export default function Onboarding({ isEditing = false }: { isEditing?: boolean 
       default: return false;
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={48} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col p-6">

@@ -2,13 +2,14 @@ import { INTERESTS_LIST, type Profile } from '../types';
 
 // Weights for different categories
 const WEIGHTS = {
-  INTEREST: 5,
-  INTENT_MATCH: 30,
-  INTENT_MISMATCH_PENALTY: -30,
+  INTEREST: 8, // Increased: Shared interests matter more
+  INTENT_MATCH: 35, // Increased: Intent is key
+  INTENT_MISMATCH_PENALTY: -40, // Stricter penalty
   PERSONALITY_COMPATIBLE: 15,
   PERSONALITY_MATCH: 10,
   DEPARTMENT_MATCH: 10, // Same dept?
-  MAJOR_MATCH: 15, // Same major? (Study buddy potential)
+  MAJOR_MATCH: 20, // Increased: Study buddies are huge
+  YEAR_MATCH: 10, // New: Same batch bonus
   YEAR_GAP_PENALTY: -5, // Too big age gap?
   FRIENDSHIP_BONUS: 20, // Boost for "Friendship first" intent
 };
@@ -63,6 +64,13 @@ export function analyzeCompatibility(user1: Profile, user2: Profile): MatchAnaly
     } else if (DEPT_COMPATIBILITY[user1.department]?.includes(user2.department)) {
       rawScore += 5; // Slight boost for compatible fields
       academicSynergy = "Power Couple 🚀";
+    }
+  }
+
+  // 1.5 Year Compatibility
+  if (user1.year && user2.year) {
+    if (user1.year === user2.year) {
+      rawScore += WEIGHTS.YEAR_MATCH;
     }
   }
 
