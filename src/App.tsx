@@ -83,7 +83,7 @@ function App() {
   }, [setCurrentUser]);
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Suspense fallback={<LoadingScreen />}>
         <Sidebar />
         <div className="md:pl-64 min-h-screen transition-all duration-300">
