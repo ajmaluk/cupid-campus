@@ -97,11 +97,14 @@ export default function Signup() {
     if (currentStep === 1) { // Account Step Logic
       setLoading(true);
       try {
+        const sanitizedUsername = formData.username.trim().toLowerCase();
+        const sanitizedEmail = formData.email.trim().toLowerCase();
+
         // Check Username
         const { data: existingUser, error: checkError } = await supabase
           .from('profiles')
           .select('username')
-          .eq('username', formData.username)
+          .eq('username', sanitizedUsername)
           .maybeSingle();
 
         if (checkError) throw checkError;
@@ -111,12 +114,12 @@ export default function Signup() {
 
         // SignUp with Supabase (Sends Email OTP)
         const { error: signUpError } = await supabase.auth.signUp({
-          email: formData.email,
+          email: sanitizedEmail,
           password: formData.password,
           options: {
             data: {
-              full_name: formData.name,
-              username: formData.username,
+              full_name: formData.name.trim(),
+              username: sanitizedUsername,
             }
           }
         });
@@ -128,7 +131,15 @@ export default function Signup() {
       } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
         console.error('Signup Error:', err);
         const message = err?.message || err?.error_description || JSON.stringify(err);
-        setError(message);
+        
+        let friendlyMessage = message;
+        if (message.includes('User already registered')) {
+          friendlyMessage = 'User already registered. Please Login instead.';
+        } else if (message.includes('Password should be')) {
+          friendlyMessage = 'Password is too weak.';
+        }
+
+        setError(friendlyMessage);
       } finally {
         setLoading(false);
       }
@@ -140,8 +151,10 @@ export default function Signup() {
       setLoading(true);
       try {
         // Verify OTP (Signup Type)
+        const sanitizedEmail = formData.email.trim().toLowerCase();
+        
         const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
-          email: formData.email,
+          email: sanitizedEmail,
           token: otp,
           type: 'signup'
         });
@@ -153,8 +166,8 @@ export default function Signup() {
           // Create Profile
           const profile: Profile = {
             id: userId,
-            name: formData.name,
-            username: formData.username,
+            name: formData.name.trim(),
+            username: formData.username.trim().toLowerCase(),
             dob: formData.dob,
             age: calculateAge(formData.dob),
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -168,7 +181,7 @@ export default function Signup() {
             bio: '',
             interests: formData.interests,
             photos: [],
-            primary_photo: `https://ui-avatars.com/api/?name=${formData.name}&background=random`,
+            primary_photo: `https://ui-avatars.com/api/?name=${formData.name.trim()}&background=random`,
             created_at: new Date().toISOString()
           };
 
@@ -180,7 +193,7 @@ export default function Signup() {
       } catch (err: any) {
         console.error('Verification Error:', err);
         const message = err?.message || 'Verification failed';
-        setError(message);
+        setError(message.includes('Token has expired') ? 'Code expired. Please Resend.' : message);
       } finally {
         setLoading(false);
       }
@@ -508,6 +521,9 @@ export default function Signup() {
                     <p className="text-gray-400 mt-2">
                       We sent a verification code to <br/>
                       <span className="text-white font-medium bg-white/10 px-2 py-1 rounded-md">{formData.email}</span>
+                    </p>
+                    <p className="text-xs text-yellow-500/80 mt-2 font-medium">
+                       ⚠️ Check your Spam/Junk folder if not received!
                     </p>
                     <button 
                       onClick={() => setCurrentStep(1)}
