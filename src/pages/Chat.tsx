@@ -1,0 +1,100 @@
+import { useState, useMemo } from 'react';
+import { useStore } from '../store/useStore';
+import { PageTransition } from '../components/PageTransition';
+import { Search, MessageCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
+export default function Chat() {
+  const { matches } = useStore();
+  const [search, setSearch] = useState('');
+  const navigate = useNavigate();
+
+  // Use useMemo to prevent random generation on every render
+  const chats = useMemo(() => {
+    return matches.map(match => {
+      // In a real app, we would join the messages table to get the last message
+      // For now, we just show the match details without fake data
+      
+      const lastMsg = "Start a conversation";
+      const time = new Date(match.created_at).toLocaleDateString();
+      const unread = false; 
+
+      return { ...match, lastMsg, time, unread };
+    });
+  }, [matches]);
+
+  const filteredChats = chats.filter(c => c.profile?.name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <PageTransition>
+      <div className="min-h-screen bg-background pb-24 px-6 pt-6 max-w-5xl mx-auto">
+        <h1 className="text-3xl font-bold mb-6">Messages</h1>
+
+        {/* Search */}
+        <div className="relative mb-6">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
+          <input 
+            type="text" 
+            placeholder="Search matches..." 
+            className="w-full bg-gray-900 border border-gray-800 rounded-2xl py-3 pl-12 pr-4 text-white placeholder:text-gray-500 focus:outline-none focus:border-primary/50 transition-all"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+
+        {/* New Matches (Horizontal Scroll) */}
+        <div className="mb-8">
+          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">New Matches</h2>
+          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+            {matches.length > 0 ? matches.map(match => (
+              <div 
+                key={match.id} 
+                className="flex flex-col items-center gap-2 min-w-[70px] cursor-pointer active:scale-95 transition-transform"
+                onClick={() => navigate(`/chat/${match.id}`)}
+              >
+                <div className="w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-primary to-purple-500">
+                  <img src={match.profile?.primary_photo} className="w-full h-full rounded-full object-cover border-2 border-background" />
+                </div>
+                <span className="text-xs font-medium truncate w-full text-center">{match.profile?.name}</span>
+              </div>
+            )) : (
+              <p className="text-sm text-gray-500">No matches yet.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Messages List */}
+        <div className="space-y-4">
+          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Conversations</h2>
+          {filteredChats.length > 0 ? filteredChats.map(chat => (
+            <div 
+              key={chat.id} 
+              className="flex items-center gap-4 p-4 bg-gray-900/50 rounded-2xl border border-white/5 active:scale-98 transition-transform cursor-pointer hover:bg-gray-800/50"
+              onClick={() => navigate(`/chat/${chat.id}`)}
+            >
+              <div className="relative">
+                <img src={chat.profile?.primary_photo} className="w-14 h-14 rounded-full object-cover" />
+                {chat.unread && <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full border-2 border-background" />}
+              </div>
+              
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-center mb-1">
+                  <h3 className="font-bold text-white">{chat.profile?.name}</h3>
+                  <span className="text-xs text-gray-500">{chat.time}</span>
+                </div>
+                <p className={`text-sm truncate ${chat.unread ? 'text-white font-medium' : 'text-gray-400'}`}>
+                  {chat.lastMsg}
+                </p>
+              </div>
+            </div>
+          )) : (
+            <div className="text-center py-10 text-gray-500">
+              <MessageCircle size={48} className="mx-auto mb-4 opacity-20" />
+              <p>No messages yet. Get swiping!</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </PageTransition>
+  );
+}
