@@ -78,17 +78,13 @@ export default function Signup() {
 
       {/* Right Side - Signup Form */}
       <div className="w-full md:w-1/2 relative flex flex-col items-center justify-center p-0 md:p-6 bg-background h-screen md:h-auto">
-        {/* Mobile Background Blobs */}
+        {/* Mobile Background Blobs - Static/Simplified to reduce lag */}
         <div className="md:hidden absolute inset-0 overflow-hidden pointer-events-none">
-          <motion.div 
-            animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
-            transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-            className="absolute top-[-20%] left-[-20%] w-[600px] h-[600px] bg-primary/20 rounded-full blur-[120px] opacity-60" 
+          <div 
+            className="absolute top-[-20%] left-[-20%] w-[600px] h-[600px] bg-primary/20 rounded-full blur-[80px] opacity-40" 
           />
-          <motion.div 
-            animate={{ scale: [1, 1.3, 1], rotate: [0, -90, 0] }}
-            transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-            className="absolute bottom-[-20%] right-[-20%] w-[600px] h-[600px] bg-purple-500/20 rounded-full blur-[120px] opacity-60" 
+          <div 
+            className="absolute bottom-[-20%] right-[-20%] w-[600px] h-[600px] bg-purple-500/20 rounded-full blur-[80px] opacity-40" 
           />
         </div>
 

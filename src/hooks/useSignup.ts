@@ -143,6 +143,8 @@ export function useSignup() {
       return;
     }
 
+    const API_URL = '';
+
     if (currentStep === 1) { // Account Step
       setLoading(true);
       try {
@@ -161,37 +163,24 @@ export function useSignup() {
           throw new Error('Username already taken');
         }
 
-        // SignUp with Supabase
-        const { error: signUpError } = await supabase.auth.signUp({
-          email: sanitizedEmail,
-          password: formData.password,
-          options: {
-            data: {
-              full_name: formData.name.trim(),
-              username: sanitizedUsername,
-            }
-          }
+        // Send OTP via custom backend
+        const response = await fetch(`${API_URL}/api/send-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: sanitizedEmail }),
         });
 
-        if (signUpError) throw signUpError;
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Failed to send OTP');
+        }
 
         setResendTimer(60);
         setCurrentStep(prev => prev + 1);
       } catch (err: unknown) {
         console.error('Signup Error:', err);
         const message = err instanceof Error ? err.message : 'An unexpected error occurred';
-        // Handle Supabase specific error structure if needed (often comes as { message: ... } or { error_description: ... })
-        const supabaseError = err as { message?: string, error_description?: string };
-        const detailedMessage = supabaseError?.message || supabaseError?.error_description || message;
-        
-        let friendlyMessage = detailedMessage;
-        if (friendlyMessage.includes('User already registered')) {
-          friendlyMessage = 'User already registered. Please Login instead.';
-        } else if (friendlyMessage.includes('Password should be')) {
-          friendlyMessage = 'Password is too weak.';
-        }
-
-        setError(friendlyMessage);
+        setError(message);
       } finally {
         setLoading(false);
       }
@@ -204,20 +193,40 @@ export function useSignup() {
       try {
         const sanitizedEmail = formData.email.trim().toLowerCase();
         
-        const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
-          email: sanitizedEmail,
-          token: otp,
-          type: 'signup'
+        // Verify OTP with custom backend
+        const verifyResponse = await fetch(`${API_URL}/api/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: sanitizedEmail, otp }),
         });
 
-        if (verifyError) throw verifyError;
+        if (!verifyResponse.ok) {
+          const data = await verifyResponse.json();
+          throw new Error(data.error || 'Verification failed');
+        }
 
-        const userId = verifyData.user?.id;
+        // OTP Verified. Now create user in Supabase
+        // Note: Supabase might still send a confirmation email.
+        const sanitizedUsername = formData.username.trim().toLowerCase();
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: sanitizedEmail,
+          password: formData.password,
+          options: {
+            data: {
+              full_name: formData.name.trim(),
+              username: sanitizedUsername,
+            }
+          }
+        });
+
+        if (signUpError) throw signUpError;
+
+        const userId = signUpData.user?.id;
         if (userId) {
           const profile: Profile = {
             id: userId,
             name: formData.name.trim(),
-            username: formData.username.trim().toLowerCase(),
+            username: sanitizedUsername,
             dob: formData.dob,
             age: calculateAge(formData.dob),
             gender: formData.gender as Profile['gender'],
@@ -234,14 +243,19 @@ export function useSignup() {
           };
 
           const { error: upsertError } = await supabase.from('profiles').upsert(profile);
-          if (upsertError) throw upsertError;
+          if (upsertError) {
+             // If RLS prevents this, we might need to handle it. 
+             // But for now, assuming user will handle Supabase side or RLS is open.
+             console.error('Profile creation error:', upsertError);
+             throw upsertError;
+          }
           setCurrentUser(profile);
           setCurrentStep(prev => prev + 1);
         }
       } catch (err: unknown) {
         console.error('Verification Error:', err);
         const message = err instanceof Error ? err.message : 'Verification failed';
-        setError(message.includes('Token has expired') ? 'Code expired. Please Resend.' : message);
+        setError(message);
       } finally {
         setLoading(false);
       }
@@ -264,12 +278,18 @@ export function useSignup() {
     
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: formData.email,
+      // Send OTP via custom backend
+      const response = await fetch('/api/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email.trim().toLowerCase() }),
       });
-      
-      if (error) throw error;
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to resend code');
+      }
+
       setResendTimer(60);
     } catch (err: unknown) {
       console.error('Resend Error:', err);

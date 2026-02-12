@@ -5,10 +5,11 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useStore } from '../store/useStore';
 import { supabase } from '../lib/supabase';
-import { INTERESTS_LIST, type Profile } from '../types';
+import { type Profile } from '../types';
 import { ChevronRight, Upload, X, Loader2, ChevronLeft, Check } from 'lucide-react';
 import { uploadImage } from '../lib/cloudinary';
 import { validateFace } from '../lib/faceRecognition';
+import { Interests } from '../components/signup/Interests';
 
 const STEPS = ['Identity', 'Academic', 'Vibe', 'Photos', 'Bio'];
 
@@ -346,36 +347,7 @@ export default function Onboarding({ isEditing = false }: { isEditing?: boolean 
 
             {/* Step 2: Vibe/Interests (Enhanced UI) */}
             {currentStep === 2 && (
-              <div className="space-y-8">
-                {Object.entries(INTERESTS_LIST).map(([category, interests]) => (
-                  <div key={category} className="space-y-3">
-                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest px-1">{category}</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {interests.map(interest => {
-                        const selected = formData.interests.includes(interest);
-                        return (
-                          <button
-                            key={interest}
-                            onClick={() => {
-                              const newInterests = selected 
-                                ? formData.interests.filter(i => i !== interest)
-                                : [...formData.interests, interest];
-                              updateForm('interests', newInterests);
-                            }}
-                            className={`px-4 py-2.5 rounded-full text-sm font-medium border transition-all active:scale-95 ${
-                              selected
-                                ? 'bg-white text-black border-white shadow-lg shadow-white/10'
-                                : 'bg-gray-900/50 border-gray-800 text-gray-400 hover:border-gray-600'
-                            }`}
-                          >
-                            {interest}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <Interests interests={formData.interests} updateForm={updateForm} />
             )}
 
             {/* Step 3: Photos */}

@@ -1,13 +1,13 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { INTERESTS_LIST } from '../../types';
-import type { SignupFormData } from '../../hooks/useSignup';
 
 interface InterestsProps {
   interests: string[];
-  updateForm: <K extends keyof SignupFormData>(key: K, value: SignupFormData[K]) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  updateForm: (key: any, value: any) => void;
 }
 
-export const Interests: React.FC<InterestsProps> = ({ interests, updateForm }) => {
+export const Interests: React.FC<InterestsProps> = memo(({ interests, updateForm }) => {
   return (
     <div className="space-y-6">
       {Object.entries(INTERESTS_LIST).map(([category, categoryInterests]) => (
@@ -19,6 +19,7 @@ export const Interests: React.FC<InterestsProps> = ({ interests, updateForm }) =
               return (
                 <button
                   key={interest}
+                  type="button"
                   onClick={() => {
                     const newInterests = selected 
                       ? interests.filter(i => i !== interest)
@@ -40,4 +41,6 @@ export const Interests: React.FC<InterestsProps> = ({ interests, updateForm }) =
       ))}
     </div>
   );
-};
+});
+
+Interests.displayName = 'Interests';
