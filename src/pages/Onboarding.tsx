@@ -85,14 +85,12 @@ export default function Onboarding({ isEditing = false }: { isEditing?: boolean 
     bio: ''
   });
 
-  const updateForm = (key: keyof typeof formData, value: string | string[]) => {
+  const updateForm = <K extends keyof typeof formData>(key: K, value: typeof formData[K]) => {
     // Reset major if department changes
     if (key === 'department') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setFormData(prev => ({ ...prev, [key]: value, major: '' } as any));
+      setFormData(prev => ({ ...prev, [key]: value, major: '' }));
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setFormData(prev => ({ ...prev, [key]: value } as any));
+      setFormData(prev => ({ ...prev, [key]: value }));
     }
   };
 
@@ -238,7 +236,7 @@ export default function Onboarding({ isEditing = false }: { isEditing?: boolean 
                 <div className="space-y-2">
                   <label className="text-sm text-gray-400 font-medium">I identify as...</label>
                   <div className="grid grid-cols-2 gap-2">
-                    {['Male', 'Female', 'Non-binary', 'Other'].map(g => (
+                    {(['Male', 'Female', 'Non-binary', 'Other'] as const).map(g => (
                       <button
                         key={g}
                         className={`p-4 rounded-2xl border text-sm font-medium transition-all ${
@@ -256,7 +254,7 @@ export default function Onboarding({ isEditing = false }: { isEditing?: boolean 
                 <div className="space-y-2">
                   <label className="text-sm text-gray-400 font-medium">Interested in...</label>
                   <div className="grid grid-cols-3 gap-2">
-                    {['Male', 'Female', 'Everyone'].map(g => (
+                    {(['Male', 'Female', 'Everyone'] as const).map(g => (
                       <button
                         key={g}
                         className={`p-4 rounded-2xl border text-sm font-medium transition-all ${

@@ -79,8 +79,7 @@ export default function Admin() {
     };
 
     // Store locally
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    addRecommendation({ ...rec, id: Date.now().toString() } as any);
+    addRecommendation({ ...rec, id: Date.now().toString() });
     
     // Store in DB
     await supabase.from('admin_recommendations').insert(rec);

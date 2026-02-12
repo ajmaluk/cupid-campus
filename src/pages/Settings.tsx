@@ -9,7 +9,10 @@ import { Button } from '../components/ui/Button';
 export default function Settings() {
   const navigate = useNavigate();
   const { currentUser, setCurrentUser } = useStore();
-  const [notifications, setNotifications] = useState(true);
+  const [notifications, setNotifications] = useState(() => {
+    const saved = localStorage.getItem('cetea-notifications');
+    return saved ? JSON.parse(saved) : true;
+  });
   const [isSaving, setIsSaving] = useState(false);
 
   // Local state for discovery settings
@@ -22,6 +25,9 @@ export default function Settings() {
     
     setIsSaving(true);
     try {
+      // Save notifications to local storage
+      localStorage.setItem('cetea-notifications', JSON.stringify(notifications));
+
       // Update interested_in in Supabase
       const { error } = await supabase
         .from('profiles')
@@ -165,7 +171,7 @@ export default function Settings() {
           </section>
 
           <div className="text-center pt-8 pb-4">
-            <p className="text-xs text-gray-600 font-medium">Cupid Campus v1.0.0</p>
+            <p className="text-xs text-gray-600 font-medium">CETea v1.0.0</p>
             <p className="text-[10px] text-gray-700 mt-1">Made with ❤️ for Students</p>
           </div>
         </div>

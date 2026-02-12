@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Heart, Sparkles, ArrowRight, Mail, Loader2, CheckCircle2, Lock } from 'lucide-react';
+import { useState } from 'react';
+import { Heart, Sparkles, ArrowRight, Mail, Loader2, Lock } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
@@ -10,66 +10,15 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isSent, setIsSent] = useState(false);
   const [error, setError] = useState('');
   
   const navigate = useNavigate();
-  const { currentUser, setCurrentUser } = useStore();
-
-  useEffect(() => {
-    if (currentUser) {
-      navigate('/discover');
-    }
-  }, [currentUser, navigate]);
-
-  const isAdminEmail = email.trim() === 'cee.ee.tea.2026@gmail.com';
+  const { setCurrentUser } = useStore();
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
-    // Admin Bypass (Login Only)
-    if (isAdminEmail) {
-      if (!password) {
-        setError('Password required for admin.');
-        setLoading(false);
-        return;
-      }
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password: password
-        });
-        if (error) throw error;
-        
-        if (data.user) {
-          setCurrentUser({
-            id: 'admin-user',
-            name: 'Cupid Admin',
-            age: 99,
-            gender: 'Other',
-            interested_in: 'Everyone',
-            department: 'Administration',
-            major: 'Love Engineering',
-            course: 'Master of Matchmaking',
-            year: 'Staff',
-            bio: 'Official Administrator of Cupid Campus.',
-            interests: ['Matchmaking', 'Coding', 'Coffee'],
-            photos: [{ id: '1', url: 'https://images.unsplash.com/photo-1518644730709-0835105d9daa?w=800', is_primary: true }],
-            primary_photo: 'https://images.unsplash.com/photo-1518644730709-0835105d9daa?w=800',
-            created_at: new Date().toISOString(),
-            is_admin: true
-          });
-          navigate('/admin');
-        }
-        return;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Admin login failed.');
-        setLoading(false);
-        return;
-      }
-    }
 
     // Strict Domain Check
     if (!email.trim().endsWith('@cet.ac.in')) {
@@ -144,7 +93,7 @@ export default function Login() {
             transition={{ delay: 0.2, duration: 0.8 }}
             className="text-6xl font-bold text-white mb-6 tracking-tight"
           >
-            Cupid Campus
+            CETea
           </motion.h1>
           
           <motion.p 
@@ -217,112 +166,85 @@ export default function Login() {
           </div>
 
           <AnimatePresence mode="wait">
-            {!isSent ? (
-              <motion.form 
-                key="form"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                className="space-y-6"
-                onSubmit={handleAuth}
-              >
-                <div className="flex justify-center mb-8 bg-black/30 p-1.5 rounded-2xl shrink-0 border border-white/5">
-                  <button
-                    type="button"
-                    className="flex-1 py-3 rounded-xl text-sm font-bold transition-all bg-primary text-white shadow-lg shadow-primary/20"
-                  >
-                    Login
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/signup')}
-                    className="flex-1 py-3 rounded-xl text-sm font-bold transition-all text-gray-400 hover:text-white hover:bg-white/5"
-                  >
-                    Sign Up
-                  </button>
-                </div>
-
-                <div className="space-y-5">
-                  <div className="relative group">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-primary transition-colors" size={20} />
-                    <input 
-                      type="email" 
-                      placeholder="College Email (@cet.ac.in)" 
-                      className="w-full bg-black/20 border border-white/10 rounded-2xl h-14 pl-12 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:border-primary/50 focus:bg-black/40 focus:ring-1 focus:ring-primary/50 transition-all text-base font-medium"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      autoFocus
-                      autoCapitalize="none"
-                      inputMode="email"
-                      autoComplete="username"
-                    />
-                  </div>
-
-                  {/* Password Field - Always Show */}
-                  <div className="relative group">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-primary transition-colors" size={20} />
-                    <input 
-                      type="password" 
-                      placeholder="Password"
-                      className="w-full bg-black/20 border border-white/10 rounded-2xl h-14 pl-12 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:border-primary/50 focus:bg-black/40 focus:ring-1 focus:ring-primary/50 transition-all text-base font-medium"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      autoComplete="current-password"
-                    />
-                  </div>
-                </div>
-
-                {error && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3"
-                  >
-                    <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-                    <p className="text-red-200 text-sm font-medium">
-                      {error}
-                    </p>
-                  </motion.div>
-                )}
-
-                <Button 
-                  className="w-full h-14 text-lg font-bold rounded-2xl bg-gradient-to-r from-primary to-purple-600 hover:to-purple-500 text-white shadow-xl shadow-primary/25 transition-all active:scale-95 flex items-center justify-center gap-2 group disabled:opacity-70 mt-6 border border-white/10"
-                  disabled={loading || !email || !password}
+            <motion.form 
+              key="form"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="space-y-6"
+              onSubmit={handleAuth}
+            >
+              <div className="flex justify-center mb-8 bg-black/30 p-1.5 rounded-2xl shrink-0 border border-white/5">
+                <button
+                  type="button"
+                  className="flex-1 py-3 rounded-xl text-sm font-bold transition-all bg-primary text-white shadow-lg shadow-primary/20"
                 >
-                  {loading ? <Loader2 className="animate-spin" /> : (
-                    <>
-                      {isAdminEmail ? 'Admin Login' : 'Login'}
-                      <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-                    </>
-                  )}
-                </Button>
-              </motion.form>
-            ) : (
-              <motion.div
-                key="success"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="text-center space-y-6"
-              >
-                <div className="w-16 h-16 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle2 size={32} />
+                  Login
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/signup')}
+                  className="flex-1 py-3 rounded-xl text-sm font-bold transition-all text-gray-400 hover:text-white hover:bg-white/5"
+                >
+                  Sign Up
+                </button>
+              </div>
+
+              <div className="space-y-5">
+                <div className="relative group">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-primary transition-colors" size={20} />
+                  <input 
+                    type="email" 
+                    placeholder="College Email (@cet.ac.in)" 
+                    className="w-full bg-black/20 border border-white/10 rounded-2xl h-14 pl-12 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:border-primary/50 focus:bg-black/40 focus:ring-1 focus:ring-primary/50 transition-all text-base font-medium"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoFocus
+                    autoCapitalize="none"
+                    inputMode="email"
+                    autoComplete="username"
+                  />
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white mb-2">Check your email!</h3>
-                  <p className="text-gray-400">
-                    We sent a magic link to <br/>
-                    <span className="text-white font-medium">{email}</span>
+
+                {/* Password Field - Always Show */}
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-primary transition-colors" size={20} />
+                  <input 
+                    type="password" 
+                    placeholder="Password"
+                    className="w-full bg-black/20 border border-white/10 rounded-2xl h-14 pl-12 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:border-primary/50 focus:bg-black/40 focus:ring-1 focus:ring-primary/50 transition-all text-base font-medium"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3"
+                >
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                  <p className="text-red-200 text-sm font-medium">
+                    {error}
                   </p>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  onClick={() => setIsSent(false)}
-                  className="text-gray-500 hover:text-white"
-                >
-                  Try different email
-                </Button>
-              </motion.div>
-            )}
+                </motion.div>
+              )}
+
+              <Button 
+                className="w-full h-14 text-lg font-bold rounded-2xl bg-gradient-to-r from-primary to-purple-600 hover:to-purple-500 text-white shadow-xl shadow-primary/25 transition-all active:scale-95 flex items-center justify-center gap-2 group disabled:opacity-70 mt-6 border border-white/10"
+                disabled={loading || !email || !password}
+              >
+                {loading ? <Loader2 className="animate-spin" /> : (
+                  <>
+                    Login
+                    <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                  </>
+                )}
+              </Button>
+            </motion.form>
           </AnimatePresence>
           
           <div className="mt-8 text-center shrink-0">

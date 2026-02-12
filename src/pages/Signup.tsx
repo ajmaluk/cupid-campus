@@ -1,276 +1,31 @@
-import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { useStore } from '../store/useStore';
-import { INTERESTS_LIST, DEPARTMENTS, MAJORS, YEARS, type Profile } from '../types';
-import { ChevronRight, ChevronLeft, Loader2, Check, Lock, Edit2, Play, Calendar } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import Lottie from 'lottie-react';
-import welcomeAnim from '../assets/lottie/welcome.json';
-
-const STEPS = ['Personal Details', 'Account', 'Verification', 'Interests', 'Welcome'];
+import { ChevronLeft, Loader2, Play } from 'lucide-react';
+import { useSignup, STEPS } from '../hooks/useSignup';
+import { PersonalDetails } from '../components/signup/PersonalDetails';
+import { AccountDetails } from '../components/signup/AccountDetails';
+import { Verification } from '../components/signup/Verification';
+import { Interests } from '../components/signup/Interests';
+import { Welcome } from '../components/signup/Welcome';
 
 export default function Signup() {
   const navigate = useNavigate();
-  const { setCurrentUser } = useStore();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [otp, setOtp] = useState('');
-  
-  const [formData, setFormData] = useState({
-    name: '',
-    dob: '',
-    gender: '' as Profile['gender'] | '',
-    interested_in: '' as Profile['interested_in'] | '',
-    department: '',
-    major: '',
-    year: '',
-    username: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    interests: [] as string[],
-    photos: [] as string[],
-    bio: ''
-  });
-
-  const [resendTimer, setResendTimer] = useState(0);
-
-  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
-
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (resendTimer > 0) {
-      timer = setInterval(() => {
-        setResendTimer(prev => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(timer);
-  }, [resendTimer]);
-  
-  // Debounced username check
-  useEffect(() => {
-    const checkUsername = async () => {
-      if (!formData.username || formData.username.length < 3) return;
-      
-      setIsCheckingUsername(true);
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('username', formData.username.trim().toLowerCase())
-          .maybeSingle();
-          
-        if (error) throw error;
-        if (data) {
-          setError('Username already taken');
-        } else {
-          setError('');
-        }
-      } catch (err) {
-        console.error('Error checking username:', err);
-      } finally {
-        setIsCheckingUsername(false);
-      }
-    };
-
-    const timer = setTimeout(checkUsername, 500);
-    return () => clearTimeout(timer);
-  }, [formData.username]);
-  
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const updateForm = (key: keyof typeof formData, value: any) => {
-    if (key === 'department') {
-      setFormData(prev => ({ ...prev, [key]: value, major: '' }));
-    } else {
-      setFormData(prev => ({ ...prev, [key]: value }));
-    }
-    setError('');
-  };
-
-  const validateStep = (step: number) => {
-    switch (step) {
-      case 0: // Personal Details
-        if (!formData.name) return "Name is required";
-        if (!formData.dob) return "Date of Birth is required";
-        if (!formData.gender) return "Please select your gender";
-        if (!formData.interested_in) return "Please select who you're interested in";
-        if (!formData.department) return "Department is required";
-        if (!formData.major) return "Major is required";
-        if (!formData.year) return "Year is required";
-        return null;
-      case 1: // Account
-        if (!formData.username) return "Username is required";
-        if (!formData.email) return "Email is required";
-        if (!formData.email.endsWith('@cet.ac.in')) return "Must be a @cet.ac.in email";
-        if (!formData.password) return "Password is required";
-        if (formData.password.length < 6) return "Password must be at least 6 characters";
-        if (formData.password !== formData.confirmPassword) return "Passwords do not match";
-        return null;
-      case 3: // Interests
-        if (formData.interests.length < 3) return "Select at least 3 interests";
-        return null;
-      default:
-        return null;
-    }
-  };
-
-  const handleNext = async () => {
-    // 1. Client-side Validation
-    const validationError = validateStep(currentStep);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    if (currentStep === 1) { // Account Step Logic
-      setLoading(true);
-      try {
-        const sanitizedUsername = formData.username.trim().toLowerCase();
-        const sanitizedEmail = formData.email.trim().toLowerCase();
-
-        // Check Username (Final Check)
-        const { data: existingUser, error: checkError } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('username', sanitizedUsername)
-          .maybeSingle();
-
-        if (checkError) throw checkError;
-        if (existingUser) {
-          throw new Error('Username already taken');
-        }
-
-        // SignUp with Supabase (Sends Email OTP)
-        const { error: signUpError } = await supabase.auth.signUp({
-          email: sanitizedEmail,
-          password: formData.password,
-          options: {
-            data: {
-              full_name: formData.name.trim(),
-              username: sanitizedUsername,
-            }
-          }
-        });
-
-        if (signUpError) throw signUpError;
-
-        setResendTimer(60);
-        setCurrentStep(prev => prev + 1);
-      } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-        console.error('Signup Error:', err);
-        const message = err?.message || err?.error_description || JSON.stringify(err);
-        
-        let friendlyMessage = message;
-        if (message.includes('User already registered')) {
-          friendlyMessage = 'User already registered. Please Login instead.';
-        } else if (message.includes('Password should be')) {
-          friendlyMessage = 'Password is too weak.';
-        }
-
-        setError(friendlyMessage);
-      } finally {
-        setLoading(false);
-      }
-    } else if (currentStep === 2) { // Verification Step Logic
-      if (!otp || otp.length !== 6) {
-        setError("Please enter a valid 6-digit OTP");
-        return;
-      }
-      setLoading(true);
-      try {
-        // Verify OTP (Signup Type)
-        const sanitizedEmail = formData.email.trim().toLowerCase();
-        
-        const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
-          email: sanitizedEmail,
-          token: otp,
-          type: 'signup'
-        });
-
-        if (verifyError) throw verifyError;
-
-        const userId = verifyData.user?.id;
-        if (userId) {
-          // Create Profile
-          const profile: Profile = {
-            id: userId,
-            name: formData.name.trim(),
-            username: formData.username.trim().toLowerCase(),
-            dob: formData.dob,
-            age: calculateAge(formData.dob),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            gender: formData.gender as any,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            interested_in: formData.interested_in as any,
-            department: formData.department,
-            major: formData.major,
-            course: `${formData.department} - ${formData.major}`,
-            year: formData.year,
-            bio: '',
-            interests: formData.interests,
-            photos: [],
-            primary_photo: `https://ui-avatars.com/api/?name=${formData.name.trim()}&background=random`,
-            created_at: new Date().toISOString()
-          };
-
-          const { error: upsertError } = await supabase.from('profiles').upsert(profile);
-          if (upsertError) throw upsertError;
-          setCurrentUser(profile);
-          setCurrentStep(prev => prev + 1);
-        }
-      } catch (err: any) {
-        console.error('Verification Error:', err);
-        const message = err?.message || 'Verification failed';
-        setError(message.includes('Token has expired') ? 'Code expired. Please Resend.' : message);
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      // Just move to next step for 0 and 3
-      setCurrentStep(prev => prev + 1);
-    }
-  };
-
-  const handleBack = () => {
-    setError('');
-    if (currentStep > 0) {
-      setCurrentStep(prev => prev - 1);
-    } else {
-      navigate('/');
-    }
-  };
-
-  const handleResend = async () => {
-    if (resendTimer > 0) return;
-    
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: formData.email,
-      });
-      
-      if (error) throw error;
-
-      setResendTimer(60);
-    } catch (err: any) {
-      console.error('Resend Error:', err);
-      setError(err.message || 'Failed to resend code');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const calculateAge = (dob: string) => {
-    const birthday = new Date(dob);
-    const ageDifMs = Date.now() - birthday.getTime();
-    const ageDate = new Date(ageDifMs);
-    return Math.abs(ageDate.getUTCFullYear() - 1970);
-  };
+  const {
+    currentStep,
+    setCurrentStep,
+    loading,
+    error,
+    otp,
+    setOtp,
+    formData,
+    updateForm,
+    handleNext,
+    handleBack,
+    handleResend,
+    resendTimer,
+    isCheckingUsername
+  } = useSignup();
 
   return (
     <div className="min-h-screen w-full flex bg-background overflow-hidden">
@@ -390,269 +145,32 @@ export default function Signup() {
               transition={{ duration: 0.3 }}
               className="flex-1 space-y-5 overflow-y-auto no-scrollbar pb-4"
             >
-              {/* Step 1: Personal Details */}
               {currentStep === 0 && (
-                <div className="space-y-4">
-                  <Input 
-                    placeholder="Full Name" 
-                    value={formData.name}
-                    onChange={e => updateForm('name', e.target.value)}
-                    className="bg-black/20 border-white/10 h-14 rounded-2xl text-lg"
-                  />
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase ml-1">Date of Birth</label>
-                    <div className="relative">
-                      <Input 
-                        type="date" 
-                        value={formData.dob}
-                        onChange={e => updateForm('dob', e.target.value)}
-                        className="bg-black/20 border-white/10 h-14 rounded-2xl text-lg appearance-none"
-                      />
-                      <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={20} />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase ml-1">I am a...</label>
-                    <div className="grid grid-cols-2 gap-3">
-                      {['Male', 'Female', 'Non-binary', 'Other'].map(g => (
-                        <button
-                          key={g}
-                          className={`p-4 rounded-2xl border text-sm font-bold transition-all touch-manipulation ${
-                            formData.gender === g 
-                              ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20 scale-[1.02]' 
-                              : 'bg-black/20 border-white/10 text-gray-400 hover:bg-white/5 active:scale-95'
-                          }`}
-                          onClick={() => updateForm('gender', g)}
-                        >
-                          {g}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase ml-1">Interested in</label>
-                    <div className="grid grid-cols-3 gap-3">
-                      {['Male', 'Female', 'Everyone'].map(g => (
-                        <button
-                          key={g}
-                          className={`p-4 rounded-2xl border text-sm font-bold transition-all touch-manipulation ${
-                            formData.interested_in === g 
-                              ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20 scale-[1.02]' 
-                              : 'bg-black/20 border-white/10 text-gray-400 hover:bg-white/5 active:scale-95'
-                          }`}
-                          onClick={() => updateForm('interested_in', g)}
-                        >
-                          {g}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-gray-500 uppercase ml-1">Academic Info</label>
-                    <div className="relative group">
-                       <select 
-                         className="w-full bg-black/20 border border-white/10 rounded-2xl h-14 px-4 text-white focus:border-primary/50 outline-none appearance-none transition-all group-hover:bg-black/30"
-                         value={formData.department}
-                         onChange={(e) => updateForm('department', e.target.value)}
-                       >
-                         <option value="">Select Department</option>
-                         {DEPARTMENTS.map(d => <option key={d} value={d} className="bg-gray-900">{d}</option>)}
-                       </select>
-                       <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 rotate-90 pointer-events-none" size={16} />
-                    </div>
-                    
-                    <AnimatePresence>
-                      {formData.department && (
-                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="relative group overflow-hidden">
-                          <select 
-                            className="w-full bg-black/20 border border-white/10 rounded-2xl h-14 px-4 text-white focus:border-primary/50 outline-none appearance-none transition-all group-hover:bg-black/30"
-                            value={formData.major}
-                            onChange={(e) => updateForm('major', e.target.value)}
-                          >
-                            <option value="">Select Major</option>
-                            {MAJORS[formData.department]?.map(m => <option key={m} value={m} className="bg-gray-900">{m}</option>)}
-                          </select>
-                          <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 rotate-90 pointer-events-none" size={16} />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    <div className="relative group">
-                      <select 
-                        className="w-full bg-black/20 border border-white/10 rounded-2xl h-14 px-4 text-white focus:border-primary/50 outline-none appearance-none transition-all group-hover:bg-black/30"
-                        value={formData.year}
-                        onChange={(e) => updateForm('year', e.target.value)}
-                      >
-                        <option value="">Select Year</option>
-                        {YEARS.map(y => <option key={y} value={y} className="bg-gray-900">{y}</option>)}
-                      </select>
-                      <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 rotate-90 pointer-events-none" size={16} />
-                    </div>
-                  </div>
-                </div>
+                <PersonalDetails formData={formData} updateForm={updateForm} />
               )}
-
-              {/* Step 2: Account Credentials */}
               {currentStep === 1 && (
-                <div className="space-y-4">
-                  <div className="relative">
-                    <Input 
-                      placeholder="Username" 
-                      value={formData.username}
-                      onChange={e => updateForm('username', e.target.value)}
-                      className={`bg-black/20 border-white/10 h-14 rounded-2xl text-lg ${error === 'Username already taken' ? 'border-red-500' : ''}`}
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                    />
-                    {isCheckingUsername && (
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                        <Loader2 className="animate-spin text-primary" size={20} />
-                      </div>
-                    )}
-                  </div>
-                  <Input 
-                    type="email"
-                    placeholder="College Email (@cet.ac.in)" 
-                    value={formData.email}
-                    onChange={e => updateForm('email', e.target.value)}
-                    className="bg-black/20 border-white/10 h-14 rounded-2xl text-lg"
-                    inputMode="email"
-                    autoCapitalize="none"
-                  />
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
-                    <input 
-                      type="password"
-                      placeholder="Password" 
-                      className="w-full bg-black/20 border border-white/10 rounded-2xl h-14 pl-12 pr-4 text-white focus:border-primary/50 outline-none transition-all text-lg placeholder:text-gray-500"
-                      value={formData.password}
-                      onChange={e => updateForm('password', e.target.value)}
-                    />
-                  </div>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
-                    <input 
-                      type="password"
-                      placeholder="Confirm Password" 
-                      className="w-full bg-black/20 border border-white/10 rounded-2xl h-14 pl-12 pr-4 text-white focus:border-primary/50 outline-none transition-all text-lg placeholder:text-gray-500"
-                      value={formData.confirmPassword}
-                      onChange={e => updateForm('confirmPassword', e.target.value)}
-                    />
-                  </div>
-                </div>
+                <AccountDetails 
+                  formData={formData} 
+                  updateForm={updateForm} 
+                  error={error} 
+                  isCheckingUsername={isCheckingUsername} 
+                />
               )}
-
-              {/* Step 3: Verification (OTP) */}
               {currentStep === 2 && (
-                <div className="space-y-8 text-center py-4">
-                  <motion.div 
-                    initial={{ scale: 0 }} animate={{ scale: 1 }}
-                    className="w-24 h-24 bg-primary/20 rounded-full flex items-center justify-center mx-auto text-primary mb-6"
-                  >
-                    <Check size={48} />
-                  </motion.div>
-                  
-                  <div>
-                    <h3 className="text-xl font-bold text-white">Check your Inbox</h3>
-                    <p className="text-gray-400 mt-2">
-                      We sent a verification code to <br/>
-                      <span className="text-white font-medium bg-white/10 px-2 py-1 rounded-md">{formData.email}</span>
-                    </p>
-                    <p className="text-xs text-yellow-500/80 mt-2 font-medium">
-                       ⚠️ Check your Spam/Junk folder if not received!
-                    </p>
-                    <button 
-                      onClick={() => setCurrentStep(1)}
-                      className="text-primary text-sm font-bold mt-4 flex items-center gap-1 mx-auto hover:text-primary/80 transition-colors"
-                    >
-                      <Edit2 size={14} /> Change Email
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    <input 
-                      type="text"
-                      placeholder="000000" 
-                      autoFocus
-                      className="w-full bg-black/20 border border-white/10 rounded-3xl py-6 text-center text-4xl tracking-[0.5em] text-white focus:border-primary/50 outline-none font-mono placeholder:text-gray-700 transition-all focus:bg-black/30"
-                      maxLength={6}
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={otp}
-                      onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
-                    />
-                    <p className="text-xs text-gray-500">
-                      Did not receive the code? <span 
-                        className={`text-white cursor-pointer hover:underline ${resendTimer > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        onClick={handleResend}
-                      >
-                        {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend'}
-                      </span>
-                    </p>
-                  </div>
-                </div>
+                <Verification 
+                  email={formData.email}
+                  otp={otp}
+                  setOtp={setOtp}
+                  resendTimer={resendTimer}
+                  handleResend={handleResend}
+                  onChangeEmail={() => setCurrentStep(1)}
+                />
               )}
-
-              {/* Step 4: Interests */}
               {currentStep === 3 && (
-                <div className="space-y-6">
-                  {Object.entries(INTERESTS_LIST).map(([category, interests]) => (
-                    <div key={category} className="space-y-3">
-                      <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest px-1">{category}</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {interests.map(interest => {
-                          const selected = formData.interests.includes(interest);
-                          return (
-                            <button
-                              key={interest}
-                              onClick={() => {
-                                const newInterests = selected 
-                                  ? formData.interests.filter(i => i !== interest)
-                                  : [...formData.interests, interest];
-                                updateForm('interests', newInterests);
-                              }}
-                              className={`px-4 py-2.5 rounded-xl text-sm font-medium border transition-all active:scale-95 touch-manipulation ${
-                                selected
-                                  ? 'bg-white text-black border-white shadow-lg scale-105'
-                                  : 'bg-white/5 border-white/5 text-gray-400 hover:bg-white/10'
-                              }`}
-                            >
-                              {interest}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <Interests interests={formData.interests} updateForm={updateForm} />
               )}
-
-              {/* Step 5: Welcome */}
               {currentStep === 4 && (
-                <div className="flex flex-col items-center justify-center h-full text-center py-6">
-                  <motion.div 
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ duration: 0.5 }}
-                    className="w-72 h-72 mb-8"
-                  >
-                    <Lottie animationData={welcomeAnim} loop={true} />
-                  </motion.div>
-                  <motion.div
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    <h2 className="text-4xl font-bold text-white mb-4">You're In! 🎉</h2>
-                    <p className="text-gray-300 text-lg leading-relaxed max-w-xs mx-auto">
-                      Welcome to the club, <span className="text-primary font-bold">{formData.name.split(' ')[0]}</span>.
-                      <br /> Your campus love story starts now.
-                    </p>
-                  </motion.div>
-                </div>
+                <Welcome name={formData.name} />
               )}
             </motion.div>
           </AnimatePresence>

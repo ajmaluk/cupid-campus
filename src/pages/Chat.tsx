@@ -1,33 +1,75 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { PageTransition } from '../components/PageTransition';
 import { Search, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+
+interface ChatPreview {
+  lastMsg: string;
+  time: Date;
+  unread: boolean;
+}
 
 export default function Chat() {
-  const { matches } = useStore();
+  const { matches, currentUser } = useStore();
   const [search, setSearch] = useState('');
+  const [chatDetails, setChatDetails] = useState<Record<string, ChatPreview>>({});
   const navigate = useNavigate();
 
-  // Use useMemo to prevent random generation on every render
+  // Fetch last messages for previews
+  useEffect(() => {
+    const fetchLastMessages = async () => {
+      if (matches.length === 0) return;
+
+      const details: Record<string, ChatPreview> = {};
+      
+      await Promise.all(matches.map(async (match) => {
+        const { data } = await supabase
+          .from('messages')
+          .select('content, created_at, is_read, sender_id')
+          .eq('match_id', match.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (data) {
+          details[match.id] = {
+            lastMsg: data.content,
+            time: new Date(data.created_at),
+            unread: !data.is_read && data.sender_id !== currentUser?.id
+          };
+        }
+      }));
+      
+      setChatDetails(details);
+    };
+
+    fetchLastMessages();
+  }, [matches, currentUser]);
+
+  // Sort by latest message
   const chats = useMemo(() => {
     return matches.map(match => {
-      // In a real app, we would join the messages table to get the last message
-      // For now, we just show the match details without fake data
+      const detail = chatDetails[match.id];
+      // Default to match creation date if no messages
+      const timestamp = detail?.time || new Date(match.created_at);
       
-      const lastMsg = "Start a conversation";
-      const time = new Date(match.created_at).toLocaleDateString();
-      const unread = false; 
-
-      return { ...match, lastMsg, time, unread };
-    });
-  }, [matches]);
+      return {
+        ...match,
+        lastMsg: detail?.lastMsg || "Start a conversation",
+        time: timestamp.toLocaleDateString(),
+        timestamp: timestamp, 
+        unread: detail?.unread || false
+      };
+    }).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  }, [matches, chatDetails]);
 
   const filteredChats = chats.filter(c => c.profile?.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <PageTransition>
-      <div className="min-h-screen bg-background pb-24 px-6 pt-6 max-w-5xl mx-auto">
+      <div className="min-h-screen bg-background pb-32 px-6 pt-6 max-w-5xl mx-auto">
         <h1 className="text-3xl font-bold mb-6">Messages</h1>
 
         {/* Search */}

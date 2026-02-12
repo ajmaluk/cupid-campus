@@ -15,16 +15,14 @@ export default function Discover() {
   const [matchModalData, setMatchModalData] = useState<{ profile: Profile; analysis: MatchAnalysis } | null>(null);
   const [loading, setLoading] = useState(potentialMatches.length === 0);
   const [error, setError] = useState('');
+  const [noMoreProfiles, setNoMoreProfiles] = useState(false);
   
   // Undo Feature State
   const [lastSwipedProfile, setLastSwipedProfile] = useState<Profile | null>(null);
   const undoTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!currentUser) {
-      navigate('/'); // Go to onboarding/login
-      return;
-    }
+    if (!currentUser) return;
 
     const fetchProfiles = async () => {
       setLoading(true);
@@ -70,8 +68,8 @@ export default function Discover() {
       const blockedIds = blockedUsers;
       const allSwipedIds = [...new Set([...swipes, ...dbSwipedIds])]; // Merge local and DB
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let availableProfiles = (data || []).map((p: any) => ({
+      // Type-safe mapping
+      let availableProfiles = (data || []).map((p) => ({
         ...p,
         // Ensure proper typing for frontend model if DB differs slightly
         interests: p.interests || [],
@@ -86,6 +84,14 @@ export default function Discover() {
         (currentUser.interested_in === 'Everyone' || p.gender === currentUser.interested_in) &&
         (p.interested_in === 'Everyone' || p.interested_in === currentUser.gender)
       );
+
+      if (availableProfiles.length === 0) {
+        setNoMoreProfiles(true);
+        setLoading(false);
+        return;
+      }
+      
+      setNoMoreProfiles(false); // Reset if we found new ones
 
       // 2. Check for Admin Recommendations
       const recommendationsForUser = recommendations.filter(rec => rec.target_user_id === currentUser.id);
@@ -115,10 +121,10 @@ export default function Discover() {
       setLoading(false);
     };
 
-    if (potentialMatches.length === 0) {
+    if (potentialMatches.length === 0 && !noMoreProfiles) {
       fetchProfiles();
     }
-  }, [currentUser, potentialMatches.length, navigate, setPotentialMatches, recommendations, matches, blockedUsers, swipes]);
+  }, [currentUser, potentialMatches.length, navigate, setPotentialMatches, recommendations, matches, blockedUsers, swipes, noMoreProfiles]);
 
   const handleSwipe = useCallback(async (direction: 'left' | 'right', profile: Profile) => {
     if (!currentUser) return;
@@ -224,7 +230,7 @@ export default function Discover() {
       </div>
 
       {/* Card Stack */}
-      <div className="flex-1 relative max-w-md mx-auto w-full mb-24 mt-8 px-4 md:px-0">
+      <div className="flex-1 relative max-w-md mx-auto w-full mb-32 mt-8 px-4 md:px-0">
         {loading ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8">
             <Loader2 size={48} className="animate-spin text-primary mb-4" />
@@ -268,6 +274,7 @@ export default function Discover() {
                 <button 
                   onClick={() => {
                     removeAllSwipes();
+                    setNoMoreProfiles(false);
                     setPotentialMatches([]); // Trigger re-fetch
                   }} 
                   className="mt-6 px-6 py-2 bg-gray-800 rounded-full text-sm hover:bg-gray-700 transition-colors border border-gray-700"

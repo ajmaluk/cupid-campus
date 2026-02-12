@@ -1,5 +1,5 @@
-const CLOUD_NAME = 'dqdoflwed';
-const UPLOAD_PRESET = 'image_id';
+const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 export const uploadImage = async (file: File): Promise<string> => {
   if (!CLOUD_NAME || !UPLOAD_PRESET) {

@@ -26,7 +26,7 @@ export const Sidebar = () => {
           <span className="text-2xl">💘</span>
         </div>
         <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">
-          Cupid Campus
+          CETea
         </h1>
       </div>
 

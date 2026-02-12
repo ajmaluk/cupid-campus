@@ -135,8 +135,15 @@ export function analyzeCompatibility(user1: Profile, user2: Profile): MatchAnaly
   // Cap personality score
   rawScore += Math.min(personalityScore, 40);
 
-  // Normalize to 0-100%
-  const normalizedPercentage = Math.min(Math.max(Math.round((rawScore / 100) * 100), 0), 100);
+  // Estimate max reasonable score: 
+  // Intent(35) + Major(20) + Dept(10) + Year(10) + Personality(40) + Interests(~20) ≈ 135
+  const MAX_POSSIBLE_SCORE = 135; 
+
+  // Updated normalization logic
+  const normalizedPercentage = Math.min(
+    Math.round((rawScore / MAX_POSSIBLE_SCORE) * 100), 
+    100
+  );
 
   // Determine Final Match Type
   if (normalizedPercentage >= 90) {

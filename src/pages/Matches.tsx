@@ -4,7 +4,7 @@ export default function Matches() {
   const { matches } = useStore();
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background pb-32">
       <div className="p-6">
         <h1 className="text-2xl font-bold mb-6">Matches</h1>
         

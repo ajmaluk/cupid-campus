@@ -7,6 +7,7 @@ import { Settings, Edit2, LogOut, ChevronRight, Camera, Loader2, Trash2 } from '
 import { motion, AnimatePresence } from 'framer-motion';
 import { uploadImage } from '../lib/cloudinary';
 import { validateFace } from '../lib/faceRecognition';
+import { supabase } from '../lib/supabase';
 
 export default function Profile() {
   const { currentUser, setCurrentUser } = useStore();
@@ -14,6 +15,7 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [editBio, setEditBio] = useState(currentUser?.bio || '');
   const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleLogout = () => {
     if (confirm('Are you sure you want to log out?')) {
@@ -22,10 +24,25 @@ export default function Profile() {
     }
   };
 
-  const saveProfile = () => {
+  const saveProfile = async () => {
     if (currentUser) {
-      setCurrentUser({ ...currentUser, bio: editBio });
-      setIsEditing(false);
+      setIsSaving(true);
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ bio: editBio })
+          .eq('id', currentUser.id);
+
+        if (error) throw error;
+
+        setCurrentUser({ ...currentUser, bio: editBio });
+        setIsEditing(false);
+      } catch (error) {
+        console.error('Error updating bio:', error);
+        alert('Failed to update bio.');
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
@@ -43,10 +60,22 @@ export default function Profile() {
         }
 
         const url = await uploadImage(file);
+        const updatedPhotos = currentUser.photos.map(p => p.is_primary ? { ...p, url } : p);
+        
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ 
+            primary_photo: url,
+            photos: updatedPhotos
+          })
+          .eq('id', currentUser.id);
+
+        if (updateError) throw updateError;
+
         setCurrentUser({ 
           ...currentUser, 
           primary_photo: url,
-          photos: currentUser.photos.map(p => p.is_primary ? { ...p, url } : p)
+          photos: updatedPhotos
         });
       } catch (error) {
         console.error(error);
@@ -68,7 +97,7 @@ export default function Profile() {
 
   return (
     <PageTransition>
-      <div className="min-h-screen bg-background pb-24 relative overflow-hidden">
+      <div className="min-h-screen bg-background pb-32 relative overflow-hidden">
         {/* Header Image */}
         <div className="relative h-72">
           <img src={currentUser.primary_photo} alt="Profile Cover" className="w-full h-full object-cover opacity-80" />
@@ -136,8 +165,10 @@ export default function Profile() {
                       onChange={(e) => setEditBio(e.target.value)}
                     />
                     <div className="flex gap-2 mt-3">
-                      <Button size="sm" onClick={saveProfile} className="flex-1">Save</Button>
-                      <Button size="sm" variant="ghost" onClick={() => setIsEditing(false)} className="flex-1">Cancel</Button>
+                      <Button size="sm" onClick={saveProfile} className="flex-1" disabled={isSaving}>
+                        {isSaving ? 'Saving...' : 'Save'}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setIsEditing(false)} className="flex-1" disabled={isSaving}>Cancel</Button>
                     </div>
                   </motion.div>
                 ) : (

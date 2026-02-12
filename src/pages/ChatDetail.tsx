@@ -84,6 +84,17 @@ export default function ChatDetail() {
 
   if (!profile) return null;
 
+  const formatMessageDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) return 'Today';
+    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return date.toLocaleDateString();
+  };
+
   return (
     <PageTransition>
       <div className="flex flex-col h-full bg-background relative">
@@ -111,20 +122,29 @@ export default function ChatDetail() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <div className="text-center text-xs text-gray-500 my-4">Today</div>
-          {messages.map((msg) => {
+          {messages.map((msg, index) => {
             const isMe = msg.sender_id === currentUser?.id;
+            const showDateHeader = index === 0 || 
+              formatMessageDate(messages[index - 1].created_at) !== formatMessageDate(msg.created_at);
+
             return (
-              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[75%] rounded-2xl px-4 py-3 shadow-sm ${
-                  isMe 
-                    ? 'bg-primary text-white rounded-br-none' 
-                    : 'bg-gray-800 text-gray-200 rounded-bl-none'
-                }`}>
-                  <p className="text-sm leading-relaxed">{msg.content}</p>
-                  <span className={`text-[10px] block mt-1 opacity-70 ${isMe ? 'text-primary-foreground' : 'text-gray-400'}`}>
-                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
+              <div key={msg.id}>
+                {showDateHeader && (
+                   <div className="text-center text-xs text-gray-500 my-4">
+                     {formatMessageDate(msg.created_at)}
+                   </div>
+                )}
+                <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[75%] rounded-2xl px-4 py-3 shadow-sm ${
+                    isMe 
+                      ? 'bg-primary text-white rounded-br-none' 
+                      : 'bg-gray-800 text-gray-200 rounded-bl-none'
+                  }`}>
+                    <p className="text-sm leading-relaxed">{msg.content}</p>
+                    <span className={`text-[10px] block mt-1 opacity-70 ${isMe ? 'text-primary-foreground' : 'text-gray-400'}`}>
+                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
                 </div>
               </div>
             );

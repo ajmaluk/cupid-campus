@@ -1,24 +1,31 @@
 import * as faceapi from 'face-api.js';
 
+let loadingPromise: Promise<void> | null = null;
 let modelsLoaded = false;
 
 export const loadModels = async () => {
   if (modelsLoaded) return;
-
-  const MODEL_URL = '/models';
   
-  try {
-    await Promise.all([
-      faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-    ]);
-    modelsLoaded = true;
-    console.log('FaceAPI models loaded');
-  } catch (error) {
-    console.error('Error loading FaceAPI models:', error);
-    throw new Error('Failed to load face recognition models');
+  if (!loadingPromise) {
+    loadingPromise = (async () => {
+      const MODEL_URL = '/models';
+      try {
+        await Promise.all([
+          faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+        ]);
+        modelsLoaded = true;
+      } catch (error) {
+        console.error('Error loading FaceAPI models:', error);
+        throw new Error(`Failed to load face recognition models: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      } finally {
+        loadingPromise = null;
+      }
+    })();
   }
+  
+  return loadingPromise;
 };
 
 export const validateFace = async (file: File): Promise<{ isValid: boolean; error?: string }> => {
@@ -69,7 +76,7 @@ export const validateFace = async (file: File): Promise<{ isValid: boolean; erro
       } catch (error) {
         console.error('Face detection error:', error);
         URL.revokeObjectURL(objectUrl);
-        resolve({ isValid: false, error: 'Error processing image for face detection.' });
+        resolve({ isValid: false, error: `Error processing image for face detection: ${error instanceof Error ? error.message : 'Unknown error'}` });
       }
     };
 
