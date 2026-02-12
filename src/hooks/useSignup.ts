@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useStore } from '../store/useStore';
 import type { Profile } from '../types/index';
 
-export const STEPS = ['Personal Details', 'Account', 'Verification', 'Interests', 'Welcome'];
+export const STEPS = ['Personal Details', 'Academic Info', 'Account', 'Verification', 'Interests', 'Welcome'];
 
 export interface SignupFormData {
   name: string;
@@ -51,6 +51,7 @@ export function useSignup() {
   const [formData, setFormData] = useState<SignupFormData>(INITIAL_FORM_DATA);
   const [resendTimer, setResendTimer] = useState(0);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [otpHash, setOtpHash] = useState('');
   const API_URL = import.meta.env.VITE_API_URL || '';
 
   // Timer for resend OTP
@@ -117,11 +118,13 @@ export function useSignup() {
         if (!formData.dob) return "Date of Birth is required";
         if (!formData.gender) return "Please select your gender";
         if (!formData.interested_in) return "Please select who you're interested in";
+        return null;
+      case 1: // Academic Info
         if (!formData.department) return "Department is required";
         if (!formData.major) return "Major is required";
         if (!formData.year) return "Year is required";
         return null;
-      case 1: // Account
+      case 2: // Account
         if (!formData.username) return "Username is required";
         if (!formData.email) return "Email is required";
         if (!formData.email.endsWith('@cet.ac.in')) return "Must be a @cet.ac.in email";
@@ -129,7 +132,7 @@ export function useSignup() {
         if (formData.password.length < 6) return "Password must be at least 6 characters";
         if (formData.password !== formData.confirmPassword) return "Passwords do not match";
         return null;
-      case 3: // Interests
+      case 4: // Interests
         if (formData.interests.length < 3) return "Select at least 3 interests";
         return null;
       default:
@@ -146,7 +149,7 @@ export function useSignup() {
 
     const API_URL = import.meta.env.VITE_API_URL || '';
 
-    if (currentStep === 1) { // Account Step
+    if (currentStep === 2) { // Account Step
       setLoading(true);
       try {
         const sanitizedUsername = formData.username.trim().toLowerCase();
@@ -176,6 +179,11 @@ export function useSignup() {
           throw new Error(data.error || 'Failed to send OTP');
         }
 
+        const data = await response.json();
+        if (data.hash) {
+          setOtpHash(data.hash);
+        }
+
         setResendTimer(60);
         setCurrentStep(prev => prev + 1);
       } catch (err: unknown) {
@@ -185,7 +193,7 @@ export function useSignup() {
       } finally {
         setLoading(false);
       }
-    } else if (currentStep === 2) { // Verification Step
+    } else if (currentStep === 3) { // Verification Step
       if (!otp || otp.length !== 6) {
         setError("Please enter a valid 6-digit OTP");
         return;
@@ -198,7 +206,7 @@ export function useSignup() {
         const verifyResponse = await fetch(`${API_URL}/api/verify-otp`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: sanitizedEmail, otp }),
+          body: JSON.stringify({ email: sanitizedEmail, otp, hash: otpHash }),
         });
 
         if (!verifyResponse.ok) {
@@ -289,6 +297,11 @@ export function useSignup() {
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || 'Failed to resend code');
+      }
+
+      const data = await response.json();
+      if (data.hash) {
+        setOtpHash(data.hash);
       }
 
       setResendTimer(60);

@@ -2,8 +2,7 @@ import express from 'express';
 import nodemailer from 'nodemailer';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import crypto from 'crypto';
 
 // Load env vars
 dotenv.config();
@@ -15,23 +14,10 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // Middleware
 app.use(cors({
-  origin: [FRONTEND_URL, 'http://localhost:5173'], // Allow both production and local dev
+  origin: [FRONTEND_URL, 'http://localhost:5173', 'https://cetea.vercel.app'],
   credentials: true
 }));
 app.use(express.json());
-
-// In-memory OTP store: Map<email, { otp: string, expires: number }>
-const otpStore = new Map();
-
-// Cleanup expired OTPs every minute
-setInterval(() => {
-  const now = Date.now();
-  for (const [email, record] of otpStore.entries()) {
-    if (now > record.expires) {
-      otpStore.delete(email);
-    }
-  }
-}, 60 * 1000);
 
 // Transporter configuration
 const transporter = nodemailer.createTransport({
@@ -47,6 +33,13 @@ const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
+// Helper: Create Hash
+const createHash = (email, otp, expires) => {
+  const data = `${email}.${otp}.${expires}`;
+  const secret = process.env.SMTP_PASSWORD || 'secret'; // Use SMTP password as secret salt
+  return crypto.createHmac('sha256', secret).update(data).digest('hex');
+};
+
 // Endpoint: Send OTP
 app.post('/api/send-otp', async (req, res) => {
   const { email } = req.body;
@@ -58,8 +51,9 @@ app.post('/api/send-otp', async (req, res) => {
   const otp = generateOTP();
   const expires = Date.now() + 5 * 60 * 1000; // 5 minutes expiration
 
-  // Store OTP
-  otpStore.set(email, { otp, expires });
+  // Create hash to send to client (Stateless verification)
+  const hash = createHash(email, otp, expires);
+  const fullHash = `${hash}.${expires}`;
 
   const mailOptions = {
     from: process.env.SMTP_EMAIL,
@@ -81,7 +75,8 @@ app.post('/api/send-otp', async (req, res) => {
   try {
     await transporter.sendMail(mailOptions);
     console.log(`OTP sent to ${email}`);
-    res.status(200).json({ message: 'OTP sent successfully' });
+    // Send hash back to client
+    res.status(200).json({ message: 'OTP sent successfully', hash: fullHash });
   } catch (error) {
     console.error('Error sending email:', error);
     res.status(500).json({ error: 'Failed to send OTP' });
@@ -89,31 +84,28 @@ app.post('/api/send-otp', async (req, res) => {
 });
 
 // Endpoint: Verify OTP
-app.post('/api/verify-otp', (req, res) => {
-  const { email, otp } = req.body;
+app.post('/api/verify-otp', async (req, res) => {
+  const { email, otp, hash } = req.body;
 
-  if (!email || !otp) {
-    return res.status(400).json({ error: 'Email and OTP are required' });
+  if (!email || !otp || !hash) {
+    return res.status(400).json({ error: 'Email, OTP, and Hash are required' });
   }
 
-  const record = otpStore.get(email);
+  const [hashValue, expires] = hash.split('.');
 
-  if (!record) {
-    return res.status(400).json({ error: 'No OTP found for this email' });
-  }
-
-  if (Date.now() > record.expires) {
-    otpStore.delete(email);
+  // Check if expired
+  if (Date.now() > parseInt(expires)) {
     return res.status(400).json({ error: 'OTP expired' });
   }
 
-  if (record.otp !== otp) {
+  // Re-compute hash to verify
+  const expectedHash = createHash(email, otp, parseInt(expires));
+
+  if (hashValue === expectedHash) {
+    res.status(200).json({ message: 'OTP verified successfully' });
+  } else {
     return res.status(400).json({ error: 'Invalid OTP' });
   }
-
-  // OTP is valid
-  otpStore.delete(email); // Consume OTP
-  res.status(200).json({ message: 'OTP verified successfully' });
 });
 
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {

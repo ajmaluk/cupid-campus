@@ -4,6 +4,7 @@ import { Button } from '../components/ui/Button';
 import { ChevronLeft, Loader2, Play } from 'lucide-react';
 import { useSignup, STEPS } from '../hooks/useSignup';
 import { PersonalDetails } from '../components/signup/PersonalDetails';
+import { AcademicDetails } from '../components/signup/AcademicDetails';
 import { AccountDetails } from '../components/signup/AccountDetails';
 import { Verification } from '../components/signup/Verification';
 import { Interests } from '../components/signup/Interests';
@@ -145,6 +146,9 @@ export default function Signup() {
                 <PersonalDetails formData={formData} updateForm={updateForm} />
               )}
               {currentStep === 1 && (
+                <AcademicDetails formData={formData} updateForm={updateForm} />
+              )}
+              {currentStep === 2 && (
                 <AccountDetails 
                   formData={formData} 
                   updateForm={updateForm} 
@@ -152,20 +156,20 @@ export default function Signup() {
                   isCheckingUsername={isCheckingUsername} 
                 />
               )}
-              {currentStep === 2 && (
+              {currentStep === 3 && (
                 <Verification 
                   email={formData.email}
                   otp={otp}
                   setOtp={setOtp}
                   resendTimer={resendTimer}
                   handleResend={handleResend}
-                  onChangeEmail={() => setCurrentStep(1)}
+                  onChangeEmail={() => setCurrentStep(2)}
                 />
               )}
-              {currentStep === 3 && (
+              {currentStep === 4 && (
                 <Interests interests={formData.interests} updateForm={updateForm} />
               )}
-              {currentStep === 4 && (
+              {currentStep === 5 && (
                 <Welcome name={formData.name} />
               )}
             </motion.div>
@@ -184,16 +188,16 @@ export default function Signup() {
           <div className="mt-6 pt-4 border-t border-white/5 shrink-0 z-10 bg-inherit">
             <Button 
               className="w-full h-16 text-lg font-bold rounded-2xl bg-white text-black hover:bg-gray-100 transition-transform active:scale-95 disabled:opacity-50 disabled:scale-100"
-              onClick={currentStep === 4 ? () => navigate('/onboarding') : handleNext}
+              onClick={currentStep === 5 ? () => navigate('/onboarding') : handleNext}
               disabled={loading}
             >
               {loading ? <Loader2 className="animate-spin" /> : (
-                currentStep === 4 ? (
+                currentStep === 5 ? (
                   <span className="flex items-center gap-2">
                     Get Started <Play size={20} fill="currentColor" />
                   </span>
                 ) : (
-                  currentStep === 1 ? 'Create Account' : (currentStep === 2 ? 'Verify & Continue' : 'Continue')
+                  currentStep === 2 ? 'Create Account' : (currentStep === 3 ? 'Verify & Continue' : 'Continue')
                 )
               )}
             </Button>
