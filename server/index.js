@@ -11,12 +11,27 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
 // Middleware
-app.use(cors()); // Allow all origins for now, or restrict to FRONTEND_URL
+app.use(cors({
+  origin: [FRONTEND_URL, 'http://localhost:5173'], // Allow both production and local dev
+  credentials: true
+}));
 app.use(express.json());
 
 // In-memory OTP store: Map<email, { otp: string, expires: number }>
 const otpStore = new Map();
+
+// Cleanup expired OTPs every minute
+setInterval(() => {
+  const now = Date.now();
+  for (const [email, record] of otpStore.entries()) {
+    if (now > record.expires) {
+      otpStore.delete(email);
+    }
+  }
+}, 60 * 1000);
 
 // Transporter configuration
 const transporter = nodemailer.createTransport({
@@ -101,6 +116,10 @@ app.post('/api/verify-otp', (req, res) => {
   res.status(200).json({ message: 'OTP verified successfully' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+export default app;

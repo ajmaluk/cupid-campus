@@ -51,6 +51,7 @@ export function useSignup() {
   const [formData, setFormData] = useState<SignupFormData>(INITIAL_FORM_DATA);
   const [resendTimer, setResendTimer] = useState(0);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const API_URL = import.meta.env.VITE_API_URL || '';
 
   // Timer for resend OTP
   useEffect(() => {
@@ -143,7 +144,7 @@ export function useSignup() {
       return;
     }
 
-    const API_URL = '';
+    const API_URL = import.meta.env.VITE_API_URL || '';
 
     if (currentStep === 1) { // Account Step
       setLoading(true);
@@ -279,7 +280,7 @@ export function useSignup() {
     setLoading(true);
     try {
       // Send OTP via custom backend
-      const response = await fetch('/api/send-otp', {
+      const response = await fetch(`${API_URL}/api/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email.trim().toLowerCase() }),
