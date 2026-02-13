@@ -14,12 +14,18 @@ This project is configured for easy deployment on [Vercel](https://vercel.com).
 5.  Click **Deploy**.
 
 ### Backend Note
-The project includes a `server.js` file for OTP verification (sending emails).
-**Note:** Vercel is primarily for frontend and serverless functions. The `server.js` uses an in-memory store for OTPs, which **will not work** on Vercel Serverless Functions (as they are stateless).
+The project uses a stateless OTP verification mechanism (HMAC-based), so it **is compatible** with Vercel Serverless Functions. No separate backend hosting is required.
 
-To make the OTP feature work in production, you have two options:
-1.  **Deploy the backend separately**: Host `server.js` on a platform like Render, Heroku, or Railway, and update `VITE_API_URL` (if applicable) or hardcode the backend URL in the frontend.
-2.  **Refactor for Serverless**: Rewrite the logic to use a database (like Supabase) for storing OTPs instead of in-memory Map, and move the logic to Vercel Functions (`api/` directory).
+### Required Environment Variables
+Add these to your Vercel Project Settings:
+
+- `VITE_SUPABASE_URL`: Your Supabase Project URL
+- `VITE_SUPABASE_ANON_KEY`: Your Supabase Anon Key
+- `VITE_CLOUDINARY_CLOUD_NAME`: Cloudinary Cloud Name (for image uploads)
+- `VITE_CLOUDINARY_UPLOAD_PRESET`: Cloudinary Upload Preset
+- `SMTP_EMAIL`: Gmail address for sending OTPs
+- `SMTP_PASSWORD`: Gmail App Password (not your login password)
+- `FRONTEND_URL`: Production URL (e.g., https://your-app.vercel.app) - Optional, defaults to Vercel deployment URL
 
 ## Local Development
 
@@ -38,13 +44,35 @@ To make the OTP feature work in production, you have two options:
 
 ## Database Reset (Dev)
 
-SQL commands to reset auth users:
+To completely reset the database (delete all data but keep tables), run the following SQL commands in the Supabase SQL Editor.
 
-- Hard delete all auth users and cascade to dependent auth tables:
+**Warning: This action is irreversible.**
+
 ```sql
-truncate table auth.users cascade;
-```
-- Alternative hard delete without truncate:
-```sql
-delete from auth.users;
+-- 1. Delete dependent application data first
+-- Using IF EXISTS or simply ignoring errors if tables don't exist is safer,
+-- but standard DELETE throws error if table is missing.
+-- If you get an error "relation does not exist", you can skip that line.
+
+DELETE FROM public.messages;
+DELETE FROM public.matches;
+DELETE FROM public.swipes;
+DELETE FROM public.admin_recommendations;
+DELETE FROM public.reports;
+DELETE FROM public.bans;
+
+-- 2. Delete main profile data
+DELETE FROM public.profiles;
+
+-- 3. Delete admin roles (Skip if table "public.admins" does not exist)
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'admins') THEN
+    DELETE FROM public.admins;
+  END IF;
+END $$;
+
+-- 4. (Optional) Delete all authenticated users
+-- WARNING: This deletes the actual login accounts. Users will need to sign up again.
+DELETE FROM auth.users;
 ```

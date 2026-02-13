@@ -272,7 +272,7 @@ $$ language plpgsql security definer;
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+  for each row execute function public.handle_new_user();
 
 -- 2. Match Logic: Check for mutual likes
 create or replace function public.check_match()
@@ -302,4 +302,20 @@ $$ language plpgsql security definer;
 drop trigger if exists on_swipe_created on public.swipes;
 create trigger on_swipe_created
   after insert on public.swipes
-  for each row execute procedure public.check_match();
+  for each row execute function public.check_match();
+
+-- 3. Check Username Availability (Securely)
+-- This function allows unauthenticated users to check if a username is taken,
+-- without exposing the entire profiles table.
+create or replace function public.check_username(username_to_check text)
+returns boolean as $$
+declare
+  is_taken boolean;
+begin
+  select exists(
+    select 1 from public.profiles where username = lower(username_to_check)
+  ) into is_taken;
+  
+  return is_taken;
+end;
+$$ language plpgsql security definer;

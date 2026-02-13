@@ -51,7 +51,7 @@ export default function Welcome() {
     if (currentSlide < SLIDES.length - 1) {
       setCurrentSlide(prev => prev + 1);
     } else {
-      navigate('/discover');
+      navigate('/onboarding');
     }
   };
 

@@ -188,11 +188,11 @@ export default function Signup() {
           <div className="mt-6 pt-4 border-t border-white/5 shrink-0 z-10 bg-inherit">
             <Button 
               className="w-full h-16 text-lg font-bold rounded-2xl bg-white text-black hover:bg-gray-100 transition-transform active:scale-95 disabled:opacity-50 disabled:scale-100"
-              onClick={currentStep === 5 ? () => navigate('/onboarding') : handleNext}
+              onClick={currentStep === STEPS.length - 1 ? () => navigate('/welcome') : handleNext}
               disabled={loading}
             >
               {loading ? <Loader2 className="animate-spin" /> : (
-                currentStep === 5 ? (
+                currentStep === STEPS.length - 1 ? (
                   <span className="flex items-center gap-2">
                     Get Started <Play size={20} fill="currentColor" />
                   </span>

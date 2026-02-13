@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { Profile } from '../types';
 import type { MatchAnalysis } from '../lib/matching';
 import { Button } from './ui/Button';
+import { useNavigate } from 'react-router-dom';
 
 interface MatchModalProps {
   isOpen: boolean;
@@ -9,9 +10,21 @@ interface MatchModalProps {
   matchedProfile: Profile;
   currentUser: Profile;
   analysis?: MatchAnalysis;
+  matchId?: number;
 }
 
-export const MatchModal = ({ isOpen, onClose, matchedProfile, currentUser, analysis }: MatchModalProps) => {
+export const MatchModal = ({ isOpen, onClose, matchedProfile, currentUser, analysis, matchId }: MatchModalProps) => {
+  const navigate = useNavigate();
+
+  const handleSendMessage = () => {
+    onClose();
+    if (matchId) {
+      navigate(`/chat/${matchId}`);
+    } else {
+      navigate('/chat');
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -84,7 +97,7 @@ export const MatchModal = ({ isOpen, onClose, matchedProfile, currentUser, analy
               transition={{ delay: 0.8 }}
               className="space-y-3"
             >
-              <Button className="w-full" onClick={onClose}>
+              <Button className="w-full" onClick={handleSendMessage}>
                 Send a Message
               </Button>
               <Button variant="ghost" className="w-full" onClick={onClose}>

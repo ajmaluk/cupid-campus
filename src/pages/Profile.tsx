@@ -6,7 +6,6 @@ import { PageTransition } from '../components/PageTransition';
 import { Settings, Edit2, LogOut, ChevronRight, Camera, Loader2, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { uploadImage } from '../lib/cloudinary';
-import { validateFace } from '../lib/faceRecognition';
 import { supabase } from '../lib/supabase';
 
 export default function Profile() {
@@ -51,14 +50,7 @@ export default function Profile() {
       const file = e.target.files[0];
       setIsUploading(true);
       try {
-        const { isValid, error } = await validateFace(file);
-        if (!isValid) {
-            alert(error || 'Face validation failed.');
-            setIsUploading(false);
-            e.target.value = '';
-            return;
-        }
-
+        // Face validation removed as per user request
         const url = await uploadImage(file);
         const updatedPhotos = currentUser.photos.map(p => p.is_primary ? { ...p, url } : p);
         
@@ -79,7 +71,7 @@ export default function Profile() {
         });
       } catch (error) {
         console.error(error);
-        alert('Failed to update avatar.');
+        alert(error instanceof Error ? error.message : 'Failed to update avatar.');
       } finally {
         setIsUploading(false);
       }
@@ -125,7 +117,7 @@ export default function Profile() {
             {isEditing && (
               <label className="absolute bottom-0 right-0 bg-primary p-2 rounded-full text-white shadow-lg border-2 border-background cursor-pointer hover:bg-primary/90 transition-colors">
                 <Camera size={16} />
-                <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} disabled={isUploading} />
+                <input type="file" className="hidden" accept="image/png, image/jpeg, image/jpg, image/webp" onChange={handleAvatarUpload} disabled={isUploading} />
               </label>
             )}
           </div>

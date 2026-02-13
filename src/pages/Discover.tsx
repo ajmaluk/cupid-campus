@@ -12,7 +12,7 @@ import { Loader2, RotateCcw, AlertCircle } from 'lucide-react';
 export default function Discover() {
   const navigate = useNavigate();
   const { currentUser, potentialMatches, setPotentialMatches, removePotentialMatch, matches, setMatches, recommendations, blockedUsers, swipes, addSwipe, removeSwipe, removeAllSwipes } = useStore();
-  const [matchModalData, setMatchModalData] = useState<{ profile: Profile; analysis: MatchAnalysis } | null>(null);
+  const [matchModalData, setMatchModalData] = useState<{ profile: Profile; analysis: MatchAnalysis; matchId: number } | null>(null);
   const [loading, setLoading] = useState(potentialMatches.length === 0);
   const [error, setError] = useState('');
   const [noMoreProfiles, setNoMoreProfiles] = useState(false);
@@ -40,16 +40,29 @@ export default function Discover() {
 
       const dbSwipedIds = dbSwipes?.map(s => s.swiped_id) || [];
       
-      // Update local store if needed (silent update)
-      // We don't call setSwipes here to avoid infinite loops, but we use dbSwipedIds for filtering
+      // Filter blocked/matched/swiped
+      const matchedIds = matches.map(m => m.user2 === currentUser.id ? m.user1 : m.user2);
+      const blockedIds = blockedUsers;
+      const allSwipedIds = [...new Set([...swipes, ...dbSwipedIds])]; // Merge local and DB
       
+      const ignoredIds = [...new Set([...matchedIds, ...blockedIds, ...allSwipedIds, currentUser.id])];
+
       // 1. Fetch potential matches from Supabase
+      // Optimized: Filter on server side to reduce data transfer
       let query = supabase
         .from('profiles')
-        .select('*')
-        .neq('id', currentUser.id);
+        .select('*');
 
-      // Server-side Gender Filtering
+      // Server-side Filtering
+      if (ignoredIds.length > 0) {
+        // Note: Supabase/PostgREST has a limit on URL length. 
+        // If ignoredIds is huge (e.g. > 1000), this might fail.
+        // For a college app, it's likely fine. If it fails, we fallback to client-side.
+        if (ignoredIds.length < 500) {
+           query = query.not('id', 'in', `(${ignoredIds.join(',')})`);
+        }
+      }
+
       if (currentUser.interested_in !== 'Everyone') {
         query = query.eq('gender', currentUser.interested_in);
       }
@@ -63,24 +76,17 @@ export default function Discover() {
         return;
       }
 
-      // Filter blocked/matched/swiped
-      const matchedIds = matches.map(m => m.user2 === currentUser.id ? m.user1 : m.user2);
-      const blockedIds = blockedUsers;
-      const allSwipedIds = [...new Set([...swipes, ...dbSwipedIds])]; // Merge local and DB
-
       // Type-safe mapping
       let availableProfiles = (data || []).map((p) => ({
         ...p,
-        // Ensure proper typing for frontend model if DB differs slightly
         interests: p.interests || [],
         photos: p.photos || [],
       })) as Profile[];
 
+      // Client-side filtering (Double check / Fallback for large lists)
       availableProfiles = availableProfiles.filter(p => 
-        !matchedIds.includes(p.id) && 
-        !blockedIds.includes(p.id) &&
-        !allSwipedIds.includes(p.id) &&
-        // Gender Filtering
+        !ignoredIds.includes(p.id) &&
+        // Gender Filtering (Redundant if server-side works, but safe)
         (currentUser.interested_in === 'Everyone' || p.gender === currentUser.interested_in) &&
         (p.interested_in === 'Everyone' || p.interested_in === currentUser.gender)
       );
@@ -176,22 +182,25 @@ export default function Discover() {
           analysis.vibeTags.unshift('Soul Mate ✨');
         }
         
-        // Save match to DB
-        await supabase.from('matches').insert({
-          user1: currentUser.id,
-          user2: profile.id,
-          compatibility_score: analysis.score
-        });
+        if (isInstantMatch && !otherSwipe) {
+           const { error: matchError } = await supabase.from('matches').insert({
+             user1: currentUser.id,
+             user2: profile.id,
+             compatibility_score: analysis.score
+           });
+           if (matchError) console.error("Error creating instant match:", matchError);
+        }
 
+        const matchId = Date.now();
         setMatches([...matches, { 
-          id: Date.now(), 
+          id: matchId, 
           user1: currentUser.id, 
           user2: profile.id, 
           compatibility_score: analysis.score, 
           created_at: new Date().toISOString(),
           profile: profile
         }]);
-        setMatchModalData({ profile, analysis });
+        setMatchModalData({ profile, analysis, matchId });
         setLastSwipedProfile(null); // Cannot undo a match
       }
     }
@@ -203,6 +212,40 @@ export default function Discover() {
       removeSwipe(lastSwipedProfile.id);
       setLastSwipedProfile(null);
       if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+    }
+  };
+
+  const handleResetSwipes = async () => {
+    if (!currentUser) return;
+    setLoading(true);
+    
+    try {
+      // 1. Delete matches involving current user (Reset everything)
+      const { error: matchesError } = await supabase
+        .from('matches')
+        .delete()
+        .or(`user1.eq.${currentUser.id},user2.eq.${currentUser.id}`);
+
+      if (matchesError) throw matchesError;
+
+      // 2. Delete swipes from Supabase
+      const { error: swipesError } = await supabase
+        .from('swipes')
+        .delete()
+        .eq('swiper_id', currentUser.id);
+
+      if (swipesError) throw swipesError;
+
+      // 3. Clear local store
+      removeAllSwipes();
+      setMatches([]); // Clear matches locally
+      setLastSwipedProfile(null);
+      setNoMoreProfiles(false);
+      setPotentialMatches([]); // Trigger re-fetch
+    } catch (err) {
+      console.error('Error resetting swipes:', err);
+      setError('Failed to reset swipes. Please try again.');
+      setLoading(false);
     }
   };
 
@@ -272,11 +315,7 @@ export default function Discover() {
                 <p className="text-lg">No more profiles nearby.</p>
                 <p className="text-sm mt-2">Check back later!</p>
                 <button 
-                  onClick={() => {
-                    removeAllSwipes();
-                    setNoMoreProfiles(false);
-                    setPotentialMatches([]); // Trigger re-fetch
-                  }} 
+                  onClick={handleResetSwipes} 
                   className="mt-6 px-6 py-2 bg-gray-800 rounded-full text-sm hover:bg-gray-700 transition-colors border border-gray-700"
                 >
                   Reset Swipes & Refresh
@@ -304,6 +343,7 @@ export default function Discover() {
           matchedProfile={matchModalData.profile} 
           currentUser={currentUser}
           analysis={matchModalData.analysis}
+          matchId={matchModalData.matchId}
         />
       )}
     </div>

@@ -1,5 +1,5 @@
 import { useState, memo, useMemo } from 'react';
-import { motion, useMotionValue, useTransform, type PanInfo } from 'framer-motion';
+import { motion, useMotionValue, useTransform, type PanInfo, AnimatePresence } from 'framer-motion';
 import { Info, Image as ImageIcon, Sparkles, MoreHorizontal, Zap } from 'lucide-react';
 import type { Profile } from '../types';
 import { ReportModal } from './ReportModal';
@@ -84,10 +84,10 @@ export const SwipeCard = memo(({ profile, onSwipe, active }: SwipeCardProps) => 
           opacity: active ? opacity : 1, // Don't fade out background card
           zIndex: active ? 10 : 0
         }}
-        drag={active ? "x" : false}
+        drag={active && !showInfo ? "x" : false}
         dragConstraints={{ left: 0, right: 0 }}
         onDragEnd={handleDragEnd}
-        className={`absolute inset-0 w-full h-full rounded-3xl overflow-hidden shadow-2xl bg-gray-900 border border-white/5 ${active ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        className={`absolute inset-0 w-full h-full rounded-3xl overflow-hidden shadow-2xl bg-gray-900 border border-white/5 ${active && !showInfo ? 'cursor-grab active:cursor-grabbing' : ''}`}
         initial={{ scale: 0.9, y: 20, opacity: 0 }}
         animate={{ 
           scale: showInfo ? 1 : initialScale, 
@@ -101,28 +101,16 @@ export const SwipeCard = memo(({ profile, onSwipe, active }: SwipeCardProps) => 
         <div className="absolute inset-0">
           <ImageWithLoader src={profile.primary_photo} alt={profile.name} />
           {/* Gradient Overlay - Deeper for better text contrast */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/90" />
         </div>
-
-        {/* Admin Recommendation Badge */}
-        {profile.is_admin_recommended && (
-          <motion.div 
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            className="absolute top-6 left-1/2 -translate-x-1/2 z-30 bg-gradient-to-r from-pink-500 to-purple-600 px-4 py-1.5 rounded-full shadow-lg border border-white/20 flex items-center gap-2"
-          >
-            <Sparkles size={16} className="text-yellow-300 fill-yellow-300" />
-            <span className="text-xs font-bold text-white uppercase tracking-wider">Cupid's Pick</span>
-          </motion.div>
-        )}
 
         {/* Swipe Indicators */}
         {active && (
           <>
-            <motion.div style={{ opacity: likeOpacity }} className="absolute top-8 left-8 -rotate-12 border-4 border-green-500 rounded-lg px-4 py-1 z-20">
+            <motion.div style={{ opacity: likeOpacity }} className="absolute top-8 left-8 -rotate-12 border-4 border-green-500 rounded-lg px-4 py-1 z-20 pointer-events-none">
               <span className="text-green-500 font-bold text-4xl uppercase tracking-widest">Like</span>
             </motion.div>
-            <motion.div style={{ opacity: nopeOpacity }} className="absolute top-8 right-8 rotate-12 border-4 border-red-500 rounded-lg px-4 py-1 z-20">
+            <motion.div style={{ opacity: nopeOpacity }} className="absolute top-8 right-8 rotate-12 border-4 border-red-500 rounded-lg px-4 py-1 z-20 pointer-events-none">
               <span className="text-red-500 font-bold text-4xl uppercase tracking-widest">Nope</span>
             </motion.div>
           </>
@@ -136,102 +124,116 @@ export const SwipeCard = memo(({ profile, onSwipe, active }: SwipeCardProps) => 
           <MoreHorizontal size={24} />
         </button>
 
-        {/* Content */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 text-white z-10 select-none">
-          <div className="flex items-end justify-between mb-2">
-            <div>
-              <h2 className="text-3xl font-bold flex items-baseline gap-2">
-                {profile.name} 
-                <span className="text-xl font-normal opacity-90">{profile.age}</span>
-              </h2>
-              <p className="text-gray-300 font-medium">{profile.course}</p>
-              
-              {/* Compatibility Badge (New) */}
-              {analysis && (
-                <div className="mt-2 flex items-center gap-2">
-                  <div className={`px-2 py-0.5 rounded-md border text-xs font-bold flex items-center gap-1 ${
-                    analysis.percentage >= 80 ? 'bg-green-500/20 border-green-500 text-green-400' :
-                    analysis.percentage >= 60 ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400' :
-                    'bg-gray-500/20 border-gray-500 text-gray-400'
-                  }`}>
-                    <Zap size={10} className="fill-current" />
-                    {analysis.percentage}% Match
-                  </div>
-                  {analysis.academicSynergy && (
-                    <div className="px-2 py-0.5 rounded-md bg-purple-500/20 border border-purple-500 text-purple-300 text-xs font-bold">
-                      {analysis.academicSynergy}
+        {/* Scrollable Content Container */}
+        <div className={`absolute inset-0 overflow-y-auto overflow-x-hidden ${showInfo ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+          {/* Spacer to push content to bottom */}
+          <div className="min-h-[60%]" onClick={() => showInfo && setShowInfo(false)} /> 
+          
+          {/* Content */}
+          <div className="relative p-6 text-white z-10 pointer-events-auto bg-gradient-to-t from-black via-black/80 to-transparent pt-12">
+            <div className="flex items-end justify-between mb-2">
+              <div onClick={(e) => {
+                 if (!showInfo) {
+                   e.stopPropagation();
+                   setShowInfo(true);
+                 }
+              }}>
+                <h2 className="text-3xl font-bold flex items-baseline gap-2 text-shadow-sm">
+                  {profile.name} 
+                  <span className="text-xl font-normal opacity-90">{profile.age}</span>
+                </h2>
+                <p className="text-gray-200 font-medium text-shadow-sm">{profile.course}</p>
+                
+                {/* Compatibility Badge (New) */}
+                {analysis && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className={`px-2 py-0.5 rounded-md border text-xs font-bold flex items-center gap-1 backdrop-blur-md ${
+                      analysis.percentage >= 80 ? 'bg-green-500/30 border-green-500 text-green-300' :
+                      analysis.percentage >= 60 ? 'bg-yellow-500/30 border-yellow-500 text-yellow-300' :
+                      'bg-gray-500/30 border-gray-500 text-gray-300'
+                    }`}>
+                      <Zap size={10} className="fill-current" />
+                      {analysis.percentage}% Match
                     </div>
-                  )}
-                </div>
+                    {analysis.academicSynergy && (
+                      <div className="px-2 py-0.5 rounded-md bg-purple-500/30 border border-purple-500 text-purple-200 text-xs font-bold backdrop-blur-md">
+                        {analysis.academicSynergy}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <button 
+                onClick={(e) => { e.stopPropagation(); setShowInfo(!showInfo); }}
+                className="p-2 bg-white/10 backdrop-blur-md rounded-full hover:bg-white/20 transition-colors shrink-0"
+              >
+                <Info size={24} />
+              </button>
+            </div>
+
+            {/* Tags - Always Visible */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {profile.interests.slice(0, 3).map((tag) => (
+                <span key={tag} className="text-xs font-medium bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full border border-white/10">
+                  {tag}
+                </span>
+              ))}
+              {profile.interests.length > 3 && (
+                <span className="text-xs font-medium bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full border border-white/10">
+                  +{profile.interests.length - 3}
+                </span>
               )}
             </div>
-            <button 
-              onClick={(e) => { e.stopPropagation(); setShowInfo(!showInfo); }}
-              className="p-2 bg-white/10 backdrop-blur-md rounded-full hover:bg-white/20 transition-colors"
-            >
-              <Info size={24} />
-            </button>
-          </div>
 
-          {/* Tags */}
-          <div className="flex flex-wrap gap-2 mb-4">
-            {profile.interests.slice(0, 3).map((tag) => (
-              <span key={tag} className="text-xs font-medium bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">
-                {tag}
-              </span>
-            ))}
-            {profile.interests.length > 3 && (
-              <span className="text-xs font-medium bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">
-                +{profile.interests.length - 3}
-              </span>
-            )}
-          </div>
+            {/* Expanded Info */}
+            <AnimatePresence>
+            {showInfo && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="space-y-6 pt-2 border-t border-white/10 pb-20"
+              >
+                <p className="text-sm leading-relaxed text-gray-200">{profile.bio}</p>
+                
+                {/* Vibe Tags (New) */}
+                {analysis && analysis.vibeTags.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-green-400 mb-2 flex items-center gap-1">
+                      <Sparkles size={12} /> Why you match
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {analysis.vibeTags.map((tag) => (
+                        <span key={tag} className="text-xs font-bold text-green-300 bg-green-900/40 border border-green-500/30 px-2 py-1 rounded-md">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-          {/* Expanded Info */}
-          {showInfo && (
-            <motion.div 
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              className="space-y-4 pt-4 border-t border-white/10"
-            >
-              <p className="text-sm leading-relaxed text-gray-200">{profile.bio}</p>
-              
-              {/* Vibe Tags (New) */}
-              {analysis && analysis.vibeTags.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-green-400 mb-2 flex items-center gap-1">
-                    <Sparkles size={12} /> Why you match
-                  </h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Interests</h4>
                   <div className="flex flex-wrap gap-2">
-                    {analysis.vibeTags.map((tag) => (
-                      <span key={tag} className="text-xs font-bold text-green-300 bg-green-900/30 border border-green-500/30 px-2 py-1 rounded-md">
+                    {profile.interests.map((tag) => (
+                      <span key={tag} className="text-xs font-medium bg-white/10 px-3 py-1 rounded-full border border-white/10">
                         {tag}
                       </span>
                     ))}
                   </div>
                 </div>
-              )}
 
-              <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Interests</h4>
-                <div className="flex flex-wrap gap-2">
-                  {profile.interests.map((tag) => (
-                    <span key={tag} className="text-xs font-medium bg-white/10 px-3 py-1 rounded-full border border-white/10">
-                      {tag}
-                    </span>
+                <div className="grid grid-cols-2 gap-2 mt-4">
+                  {profile.photos.slice(1).map((photo) => (
+                    <div key={photo.id} className="aspect-[3/4] rounded-lg overflow-hidden bg-gray-800 border border-white/5">
+                      <ImageWithLoader src={photo.url} alt="" />
+                    </div>
                   ))}
                 </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 mt-4">
-                {profile.photos.slice(1).map((photo) => (
-                  <div key={photo.id} className="aspect-[3/4] rounded-lg overflow-hidden bg-gray-800">
-                    <ImageWithLoader src={photo.url} alt="" />
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )}
+              </motion.div>
+            )}
+            </AnimatePresence>
+          </div>
         </div>
       </motion.div>
 

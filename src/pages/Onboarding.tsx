@@ -5,29 +5,19 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useStore } from '../store/useStore';
 import { supabase } from '../lib/supabase';
-import { type Profile } from '../types';
+import { type Profile, type Photo, DEPARTMENTS, MAJORS, YEARS } from '../types';
 import { ChevronRight, Upload, X, Loader2, ChevronLeft, Check } from 'lucide-react';
 import { uploadImage } from '../lib/cloudinary';
-import { validateFace } from '../lib/faceRecognition';
 import { Interests } from '../components/signup/Interests';
 
 const STEPS = ['Identity', 'Academic', 'Vibe', 'Photos', 'Bio'];
-
-const DEPARTMENTS = ['B.Tech', 'M.Tech', 'MCA', 'MBA', 'B.Arch'];
-const MAJORS: Record<string, string[]> = {
-  'B.Tech': ['Computer Science', 'Electronics & Comm', 'Electrical & Electronics', 'Mechanical', 'Civil', 'Industrial', 'Applied Electronics'],
-  'M.Tech': ['Structural Eng', 'Control Systems', 'Computer Science', 'Thermal Science', 'Robotics'],
-  'MCA': ['Computer Applications'],
-  'MBA': ['Finance', 'Marketing', 'HR', 'Operations', 'Systems'],
-  'B.Arch': ['Architecture']
-};
-const YEARS = ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year'];
 
 export default function Onboarding({ isEditing = false }: { isEditing?: boolean }) {
   const navigate = useNavigate();
   const { setCurrentUser } = useStore();
   const [currentStep, setCurrentStep] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -55,8 +45,7 @@ export default function Onboarding({ isEditing = false }: { isEditing?: boolean 
             major: profile.major || '',
             year: profile.year || '',
             interests: profile.interests || [],
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            photos: profile.photos?.map((p: any) => p.url) || [],
+            photos: profile.photos?.map((p: Photo) => p.url) || [],
             bio: profile.bio || ''
           }));
           
@@ -100,19 +89,12 @@ export default function Onboarding({ isEditing = false }: { isEditing?: boolean 
       const file = e.target.files[0];
       setIsUploading(true);
       try {
-        const { isValid, error } = await validateFace(file);
-        if (!isValid) {
-          alert(error || 'Face validation failed.');
-          setIsUploading(false);
-          e.target.value = '';
-          return;
-        }
-
+        // Face validation removed as per user request
         const url = await uploadImage(file);
         setFormData(prev => ({ ...prev, photos: [...prev.photos, url] }));
       } catch (error) {
         console.error(error);
-        alert('Failed to upload image. Please try again.');
+        alert(error instanceof Error ? error.message : 'Failed to upload image. Please try again.');
       } finally {
         setIsUploading(false);
         e.target.value = '';
@@ -127,6 +109,7 @@ export default function Onboarding({ isEditing = false }: { isEditing?: boolean 
       if (!userId) return;
 
       // Complete Onboarding
+      setIsSubmitting(true);
       const newProfile: Profile = {
         id: userId,
         ...formData,
@@ -146,14 +129,16 @@ export default function Onboarding({ isEditing = false }: { isEditing?: boolean 
         if (error) {
           console.error('Error saving profile:', error);
           alert('Failed to save profile: ' + error.message);
+          setIsSubmitting(false);
           return;
         }
 
         setCurrentUser(newProfile);
-        navigate(isEditing ? '/profile' : '/welcome');
+        navigate(isEditing ? '/profile' : '/discover');
       } catch (err) {
         console.error('Unexpected error:', err);
         alert('An unexpected error occurred.');
+        setIsSubmitting(false);
       }
     }
   };
@@ -377,7 +362,7 @@ export default function Onboarding({ isEditing = false }: { isEditing?: boolean 
                       <Upload className="mb-2" />
                     )}
                     <span className="text-xs font-medium">{isUploading ? 'Uploading...' : 'Add Photo'}</span>
-                    <input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} disabled={isUploading} />
+                    <input type="file" className="hidden" accept="image/png, image/jpeg, image/jpg, image/webp" onChange={handlePhotoUpload} disabled={isUploading} />
                   </label>
                 )}
               </div>
@@ -410,10 +395,17 @@ export default function Onboarding({ isEditing = false }: { isEditing?: boolean 
           <Button 
             className="w-full h-14 text-lg font-bold rounded-2xl"
             onClick={handleNext}
-            disabled={!isStepValid() || isUploading}
+            disabled={!isStepValid() || isUploading || isSubmitting}
           >
-            {currentStep === STEPS.length - 1 ? (isEditing ? 'Save Changes' : 'Finish Profile') : 'Continue'}
-            {currentStep < STEPS.length - 1 && <ChevronRight className="ml-2" />}
+            {isSubmitting ? (
+              <>
+                <Loader2 className="animate-spin mr-2" />
+                Saving...
+              </>
+            ) : (
+              currentStep === STEPS.length - 1 ? (isEditing ? 'Save Changes' : 'Finish Profile') : 'Continue'
+            )}
+            {currentStep < STEPS.length - 1 && !isSubmitting && <ChevronRight className="ml-2" />}
           </Button>
         </div>
       </div>

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useStore } from '../store/useStore';
+import { getApiUrl } from '../lib/utils';
 import type { Profile } from '../types/index';
 
 export const STEPS = ['Personal Details', 'Academic Info', 'Account', 'Verification', 'Interests', 'Welcome'];
@@ -42,7 +43,7 @@ const INITIAL_FORM_DATA: SignupFormData = {
 
 export function useSignup() {
   const navigate = useNavigate();
-  const { setCurrentUser } = useStore();
+  const { setCurrentUser, currentUser } = useStore();
   
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -52,11 +53,10 @@ export function useSignup() {
   const [resendTimer, setResendTimer] = useState(0);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [otpHash, setOtpHash] = useState('');
-  const API_URL = import.meta.env.VITE_API_URL || '';
 
   // Timer for resend OTP
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setInterval>;
     if (resendTimer > 0) {
       timer = setInterval(() => {
         setResendTimer(prev => prev - 1);
@@ -72,14 +72,12 @@ export function useSignup() {
       
       setIsCheckingUsername(true);
       try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('username', formData.username.trim().toLowerCase())
-          .maybeSingle();
+        const { data, error } = await supabase.rpc('check_username', { 
+          username_to_check: formData.username.trim().toLowerCase() 
+        });
           
         if (error) throw error;
-        if (data) {
+        if (data === true) {
           setError('Username already taken');
         } else {
           setError('');
@@ -147,8 +145,6 @@ export function useSignup() {
       return;
     }
 
-    const API_URL = import.meta.env.VITE_API_URL || '';
-
     if (currentStep === 2) { // Account Step
       setLoading(true);
       try {
@@ -156,19 +152,41 @@ export function useSignup() {
         const sanitizedEmail = formData.email.trim().toLowerCase();
 
         // Check Username (Final Check)
-        const { data: existingUser, error: checkError } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('username', sanitizedUsername)
-          .maybeSingle();
-
-        if (checkError) throw checkError;
-        if (existingUser) {
-          throw new Error('Username already taken');
+      // Use RPC if available, or fallback to select if policy allows
+      let usernameExists = false;
+      
+      try {
+        const { data, error } = await supabase.rpc('check_username', { username_to_check: sanitizedUsername });
+        if (!error && data !== null) {
+          usernameExists = data;
+        } else {
+           // Fallback or error handling
+           if (error) {
+             console.error('RPC check_username error:', error);
+             // If RPC fails (e.g. not created yet), try direct select (might fail due to RLS)
+             const { data: existingUser, error: checkError } = await supabase
+              .from('profiles')
+              .select('username')
+              .eq('username', sanitizedUsername)
+              .maybeSingle();
+             
+             if (!checkError && existingUser) usernameExists = true;
+           }
         }
+      } catch (err) {
+        console.error("Username check failed", err);
+      }
+
+      if (usernameExists) {
+        throw new Error('Username already taken');
+      }
 
         // Send OTP via custom backend
-        const response = await fetch(`${API_URL}/api/send-otp`, {
+        // Construct robust URL
+        const fetchUrl = getApiUrl('/api/send-otp');
+        console.log('Sending OTP to:', fetchUrl);
+
+        const response = await fetch(fetchUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: sanitizedEmail }),
@@ -188,7 +206,13 @@ export function useSignup() {
         setCurrentStep(prev => prev + 1);
       } catch (err: unknown) {
         console.error('Signup Error:', err);
-        const message = err instanceof Error ? err.message : 'An unexpected error occurred';
+        let message = 'An unexpected error occurred';
+        if (err instanceof Error) {
+          message = err.message;
+          if (message === 'The string did not match the expected pattern.') {
+             message = 'Invalid email or server configuration error';
+          }
+        }
         setError(message);
       } finally {
         setLoading(false);
@@ -203,7 +227,9 @@ export function useSignup() {
         const sanitizedEmail = formData.email.trim().toLowerCase();
         
         // Verify OTP with custom backend
-        const verifyResponse = await fetch(`${API_URL}/api/verify-otp`, {
+        const verifyUrl = getApiUrl('/api/verify-otp');
+
+        const verifyResponse = await fetch(verifyUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: sanitizedEmail, otp, hash: otpHash }),
@@ -229,6 +255,9 @@ export function useSignup() {
         });
 
         if (signUpError) throw signUpError;
+        if (!signUpData.session) {
+           console.warn("Session not created immediately. Email confirmation might be required.");
+        }
 
         const userId = signUpData.user?.id;
         if (userId) {
@@ -268,6 +297,28 @@ export function useSignup() {
       } finally {
         setLoading(false);
       }
+    } else if (currentStep === 4) { // Interests Step
+      setLoading(true);
+      try {
+        if (!currentUser?.id) throw new Error("User not found");
+        
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ interests: formData.interests })
+          .eq('id', currentUser.id);
+
+        if (updateError) throw updateError;
+        
+        // Update local state
+        setCurrentUser({ ...currentUser, interests: formData.interests });
+        setCurrentStep(prev => prev + 1);
+      } catch (err: unknown) {
+        console.error('Interest Update Error:', err);
+        const message = err instanceof Error ? err.message : 'Failed to update interests';
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
     } else {
       setCurrentStep(prev => prev + 1);
     }
@@ -288,7 +339,9 @@ export function useSignup() {
     setLoading(true);
     try {
       // Send OTP via custom backend
-      const response = await fetch(`${API_URL}/api/send-otp`, {
+      const fetchUrl = getApiUrl('/api/send-otp');
+
+      const response = await fetch(fetchUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email.trim().toLowerCase() }),

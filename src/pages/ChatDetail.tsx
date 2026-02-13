@@ -47,7 +47,11 @@ export default function ChatDetail() {
       }, (payload: { new: Message }) => {
         setMessages(prev => [...prev, payload.new]);
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          // console.log('Subscribed to chat changes');
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
